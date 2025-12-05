@@ -1,0 +1,1 @@
+main Apps Script file that creates a menu for SurveyCTO Version Control, handles deployment logic with auto-incrementing versions, manages version history sheet, integrates with SurveyCTO API, stores credentials securely, and provides export functionality.
