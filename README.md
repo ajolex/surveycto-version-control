@@ -106,6 +106,18 @@ The add-on automatically creates and maintains a "Version History" sheet with th
 | Message | Deployment commit message |
 | Status | Success/Failed/Logged |
 
+## 📋 Spreadsheet Structure
+
+This add-on is designed to work with SurveyCTO XLSForm spreadsheets. The standard structure includes:
+
+| Sheet Name | Description |
+|------------|-------------|
+| **settings** | Form-level details including `form_id`, `form_title`, security settings |
+| **survey** | All questions/fields with types (text, number, select) and logic |
+| **choices** | Options for multiple-choice questions, linked via `list_name` |
+
+The add-on automatically detects the `form_id` from your **Settings** sheet and uses it for version control. If your spreadsheet has the standard SurveyCTO structure, the form will be auto-detected when you open the Deploy dialog.
+
 ## 🔧 Troubleshooting
 
 ### "Authorization required" error
@@ -138,6 +150,7 @@ This add-on requires the following permissions:
 | `userinfo.email` | Get current user's email for logging |
 | `script.external_request` | Call SurveyCTO API |
 | `drive.file` | Create CSV export files |
+| `drive.readonly` | Export spreadsheet as XLSX for deployment |
 
 ## 📝 Best Practices
 

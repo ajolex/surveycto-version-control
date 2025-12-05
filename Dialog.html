@@ -183,6 +183,11 @@
   
   <div id="statusMessage" class="status" style="display: none;"></div>
   
+  <div id="spreadsheetInfo" class="version-preview" style="display: none;">
+    <strong>📄 Detected from spreadsheet:</strong>
+    <div id="detectedFormInfo" style="margin-top: 4px;"></div>
+  </div>
+  
   <div id="versionPreview" class="version-preview" style="display: none;">
     Next version: <strong id="nextVersion">v1.0</strong>
   </div>
@@ -191,10 +196,10 @@
     <div class="form-group">
       <label for="formSelect" class="required">Form</label>
       <select id="formSelect" onchange="updateFormName()">
-        <option value="">Loading forms...</option>
+        <option value="">Loading...</option>
       </select>
       <input type="hidden" id="formName" value="">
-      <div class="hint">Select the form to deploy</div>
+      <div class="hint">Select the form to deploy (detected from Settings sheet or SurveyCTO server)</div>
       <div id="formError" class="error-text">Please select a form</div>
     </div>
     
@@ -223,10 +228,11 @@
     let forms = [];
     let selectedFormId = '';
     let selectedFormName = '';
+    let spreadsheetFormInfo = null;
     
     // Initialize on load
     document.addEventListener('DOMContentLoaded', function() {
-      loadForms();
+      loadFormInfo();
     });
     
     function showStatus(message, type) {
@@ -247,32 +253,131 @@
       }
     }
     
-    function loadForms() {
+    /**
+     * Load form info - first from spreadsheet, then from SurveyCTO API
+     */
+    function loadFormInfo() {
       const select = document.getElementById('formSelect');
-      select.innerHTML = '<option value="">Loading forms...</option>';
+      select.innerHTML = '<option value="">Checking spreadsheet...</option>';
       select.disabled = true;
+      
+      // First, try to get form details from the spreadsheet's Settings sheet
+      google.script.run
+        .withSuccessHandler(function(info) {
+          spreadsheetFormInfo = info;
+          
+          // Show detected form info
+          if (info.spreadsheet && info.spreadsheet.found) {
+            const infoDiv = document.getElementById('detectedFormInfo');
+            infoDiv.innerHTML = 'Form ID: <strong>' + escapeHtml(info.spreadsheet.formId) + '</strong>' +
+              (info.spreadsheet.formTitle ? '<br>Title: ' + escapeHtml(info.spreadsheet.formTitle) : '');
+            document.getElementById('spreadsheetInfo').style.display = 'block';
+            
+            // Add spreadsheet form as the first option
+            let html = '<option value="">-- Select a form --</option>';
+            html += '<option value="' + escapeHtml(info.spreadsheet.formId) + '" selected>📄 ' + 
+              escapeHtml(info.spreadsheet.formTitle || info.spreadsheet.formId) + ' (from Settings sheet)</option>';
+            
+            // Pre-select the spreadsheet form
+            selectedFormId = info.spreadsheet.formId;
+            selectedFormName = info.spreadsheet.formTitle || info.spreadsheet.formId;
+            document.getElementById('formName').value = selectedFormName;
+            
+            select.innerHTML = html;
+            select.disabled = false;
+            
+            // Update version preview
+            updateVersionPreview(selectedFormId);
+            
+            // Now also load server forms as additional options
+            loadServerForms(true);
+          } else {
+            // No form found in spreadsheet, load from server
+            if (info.spreadsheet && info.spreadsheet.error) {
+              showStatus('ℹ️ ' + info.spreadsheet.error + ' Loading forms from server...', 'info');
+            }
+            loadServerForms(false);
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error('Error getting form info:', error);
+          loadServerForms(false);
+        })
+        .getCurrentFormInfo();
+    }
+    
+    /**
+     * Load forms from SurveyCTO server
+     */
+    function loadServerForms(appendToExisting) {
+      const select = document.getElementById('formSelect');
+      
+      if (!appendToExisting) {
+        select.innerHTML = '<option value="">Loading forms from server...</option>';
+        select.disabled = true;
+      }
       
       google.script.run
         .withSuccessHandler(function(loadedForms) {
           forms = loadedForms || [];
           
-          if (forms.length === 0) {
-            select.innerHTML = '<option value="">No forms found - enter ID manually below</option>';
-          } else {
-            let html = '<option value="">-- Select a form --</option>';
-            forms.forEach(function(form) {
-              html += '<option value="' + escapeHtml(form.id) + '">' + escapeHtml(form.name || form.id) + '</option>';
-            });
-            select.innerHTML = html;
+          let html = '<option value="">-- Select a form --</option>';
+          
+          // Add spreadsheet form first if detected
+          if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
+            const ssForm = spreadsheetFormInfo.spreadsheet;
+            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' + 
+              escapeHtml(ssForm.formTitle || ssForm.formId) + ' (from Settings sheet)</option>';
           }
+          
+          // Add server forms
+          if (forms.length > 0) {
+            forms.forEach(function(form) {
+              // Skip if same as spreadsheet form
+              if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && 
+                  spreadsheetFormInfo.spreadsheet.found && form.id === spreadsheetFormInfo.spreadsheet.formId) {
+                return;
+              }
+              html += '<option value="' + escapeHtml(form.id) + '">🌐 ' + escapeHtml(form.name || form.id) + ' (server)</option>';
+            });
+          }
+          
+          if (!spreadsheetFormInfo?.spreadsheet?.found && forms.length === 0) {
+            html = '<option value="">No forms found - enter ID manually below</option>';
+          }
+          
+          select.innerHTML = html;
           select.disabled = false;
+          
+          // Re-select spreadsheet form if it was detected
+          if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
+            select.value = spreadsheetFormInfo.spreadsheet.formId;
+          }
+          
+          hideStatus();
         })
         .withFailureHandler(function(error) {
-          select.innerHTML = '<option value="">Error loading forms - enter ID manually below</option>';
+          let html = '<option value="">-- Select a form --</option>';
+          
+          // Still show spreadsheet form if detected
+          if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
+            const ssForm = spreadsheetFormInfo.spreadsheet;
+            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' + 
+              escapeHtml(ssForm.formTitle || ssForm.formId) + ' (from Settings sheet)</option>';
+            select.innerHTML = html;
+            select.value = ssForm.formId;
+          } else {
+            select.innerHTML = '<option value="">Error loading forms - enter ID manually below</option>';
+          }
+          
           select.disabled = false;
           console.error('Error loading forms:', error);
         })
         .getForms();
+    }
+    
+    function loadForms() {
+      loadFormInfo();
     }
     
     function updateFormName() {
@@ -358,23 +463,67 @@
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="loader"></span>Deploying...';
       
-      const formId = selectedFormId || document.getElementById('formIdManual').value.trim();
-      const formName = selectedFormName || formId;
+      const manualFormId = document.getElementById('formIdManual').value.trim();
       const message = document.getElementById('message').value.trim();
       
-      const formData = {
-        formId: formId,
-        formName: formName,
-        message: message
-      };
-      
+      // If using spreadsheet form (not manual entry), get FRESH form_id at deployment time
+      // This is critical for formula-based form_ids that change (e.g., timestamp-based)
+      if (!manualFormId && spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
+        // Fetch fresh form ID right now before deploying
+        google.script.run
+          .withSuccessHandler(function(freshData) {
+            if (freshData.success) {
+              // Use the freshly captured form ID
+              const formData = {
+                formId: freshData.formId,
+                formName: freshData.formTitle || freshData.formId,
+                message: message
+              };
+              
+              // Update the display to show the actual form ID being deployed
+              showStatus('📌 Deploying with Form ID: <strong>' + escapeHtml(freshData.formId) + '</strong>', 'info');
+              
+              // Proceed with deployment
+              executeDeployment(formData, submitBtn);
+            } else {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Deploy';
+              showStatus('❌ Error getting form ID: ' + freshData.error, 'error');
+            }
+          })
+          .withFailureHandler(function(error) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Deploy';
+            showStatus('❌ Error: ' + error.message, 'error');
+          })
+          .getFreshFormIdForDeployment();
+      } else {
+        // Using manual form ID or server form - use as-is
+        const formId = selectedFormId || manualFormId;
+        const formName = selectedFormName || formId;
+        
+        const formData = {
+          formId: formId,
+          formName: formName,
+          message: message
+        };
+        
+        executeDeployment(formData, submitBtn);
+      }
+    }
+    
+    /**
+     * Execute the actual deployment after form ID is confirmed
+     */
+    function executeDeployment(formData, submitBtn) {
       google.script.run
         .withSuccessHandler(function(result) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Deploy';
           
           if (result.success) {
-            showStatus('✅ ' + result.message + '<br>Version: <strong>' + result.version + '</strong>', 'success');
+            showStatus('✅ ' + result.message + '<br>Version: <strong>' + result.version + '</strong>' +
+              '<br>Form ID: <strong>' + escapeHtml(formData.formId) + '</strong>', 'success');
             
             // Close dialog after 2 seconds
             setTimeout(function() {

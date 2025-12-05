@@ -11,9 +11,158 @@
 // CONSTANTS
 // ============================================
 const VERSION_HISTORY_SHEET_NAME = 'Version History';
+const SETTINGS_SHEET_NAME = 'settings';
+const SURVEY_SHEET_NAME = 'survey';
+const CHOICES_SHEET_NAME = 'choices';
 const PROPERTY_SERVER_URL = 'surveycto_server_url';
 const PROPERTY_USERNAME = 'surveycto_username';
 const PROPERTY_PASSWORD = 'surveycto_password';
+
+// ============================================
+// SPREADSHEET FORM DETECTION
+// ============================================
+
+/**
+ * Gets form details from the Settings sheet of the current spreadsheet.
+ * Looks for form_id and form_title in the Settings sheet.
+ * IMPORTANT: Uses getDisplayValues() to capture the current calculated value
+ * of formula-based form_ids (e.g., timestamp-based IDs like "2512051430").
+ * @returns {Object} Object containing formId, formTitle, and other settings.
+ */
+function getFormDetailsFromSpreadsheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Try to find Settings sheet (case-insensitive)
+  let settingsSheet = null;
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const name = sheets[i].getName().toLowerCase();
+    if (name === 'settings' || name === 'setting') {
+      settingsSheet = sheets[i];
+      break;
+    }
+  }
+  
+  if (!settingsSheet) {
+    return {
+      found: false,
+      error: 'No "Settings" sheet found in this spreadsheet.'
+    };
+  }
+  
+  // Read the settings data - use getDisplayValues() to get the CURRENT calculated
+  // value of any formulas (important for dynamic form_id formulas like timestamp-based IDs)
+  const dataRange = settingsSheet.getDataRange();
+  const headers = dataRange.getValues()[0]; // Headers are usually plain text
+  const displayValues = dataRange.getDisplayValues(); // Gets current formula results as strings
+  
+  if (displayValues.length === 0) {
+    return {
+      found: false,
+      error: 'Settings sheet is empty.'
+    };
+  }
+  
+  // Get headers (first row) - normalized to lowercase for matching
+  const normalizedHeaders = headers.map(h => String(h).toLowerCase().trim());
+  
+  // Find column indices for common SurveyCTO settings fields
+  const formIdIndex = normalizedHeaders.findIndex(h => h === 'form_id' || h === 'formid');
+  const formTitleIndex = normalizedHeaders.findIndex(h => h === 'form_title' || h === 'title');
+  const versionIndex = normalizedHeaders.findIndex(h => h === 'version');
+  
+  // Extract values (second row typically contains the values in SurveyCTO format)
+  if (displayValues.length < 2) {
+    return {
+      found: false,
+      error: 'Settings sheet has no data rows.'
+    };
+  }
+  
+  // Use displayValues to capture the exact current value (handles formulas correctly)
+  const values = displayValues[1];
+  
+  const result = {
+    found: true,
+    formId: formIdIndex >= 0 ? String(values[formIdIndex]).trim() : '',
+    formTitle: formTitleIndex >= 0 ? String(values[formTitleIndex]).trim() : '',
+    version: versionIndex >= 0 ? String(values[versionIndex]).trim() : ''
+  };
+  
+  // Use form_id as fallback for title if title is empty
+  if (!result.formTitle && result.formId) {
+    result.formTitle = result.formId;
+  }
+  
+  // Validate that we have at least a form_id
+  if (!result.formId) {
+    return {
+      found: false,
+      error: 'No "form_id" column found in Settings sheet, or form_id is empty.'
+    };
+  }
+  
+  return result;
+}
+
+/**
+ * Checks if the current spreadsheet has the standard SurveyCTO form structure.
+ * @returns {Object} Object with hasSettings, hasSurvey, hasChoices booleans.
+ */
+function checkSpreadsheetStructure() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  const sheetNames = sheets.map(s => s.getName().toLowerCase());
+  
+  return {
+    hasSettings: sheetNames.some(n => n === 'settings' || n === 'setting'),
+    hasSurvey: sheetNames.some(n => n === 'survey'),
+    hasChoices: sheetNames.some(n => n === 'choices' || n === 'choice'),
+    isSurveyCTOForm: sheetNames.some(n => n === 'settings' || n === 'setting') && 
+                     sheetNames.some(n => n === 'survey'),
+    allSheets: sheets.map(s => s.getName())
+  };
+}
+
+/**
+ * Gets the form info for deployment - combines spreadsheet data with manual input.
+ * @returns {Object} Form information for deployment.
+ */
+function getCurrentFormInfo() {
+  const spreadsheetDetails = getFormDetailsFromSpreadsheet();
+  const structure = checkSpreadsheetStructure();
+  
+  return {
+    spreadsheet: spreadsheetDetails,
+    structure: structure,
+    spreadsheetName: SpreadsheetApp.getActiveSpreadsheet().getName(),
+    spreadsheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl()
+  };
+}
+
+/**
+ * Gets the FRESH form ID from the Settings sheet at the exact moment of calling.
+ * This is critical for formula-based form IDs (like timestamp-based IDs) that change over time.
+ * Call this right before deployment to capture the exact form_id value.
+ * @returns {Object} Object with formId and formTitle at this exact moment.
+ */
+function getFreshFormIdForDeployment() {
+  const details = getFormDetailsFromSpreadsheet();
+  
+  if (!details.found) {
+    return {
+      success: false,
+      error: details.error
+    };
+  }
+  
+  return {
+    success: true,
+    formId: details.formId,
+    formTitle: details.formTitle,
+    capturedAt: new Date().toISOString()
+  };
+}
 
 // ============================================
 // MENU & UI FUNCTIONS
@@ -394,6 +543,7 @@ function getForms() {
 
 /**
  * Deploys a form to SurveyCTO.
+ * This exports the current spreadsheet as XLSX and uploads it to SurveyCTO.
  * @param {Object} formData - The form data to deploy.
  * @returns {Object} The deployment result.
  */
@@ -440,63 +590,114 @@ function deployForm(formData) {
       serverUrl = serverUrl + '.surveycto.com';
     }
     
-    // Make API call to deploy the form
-    const url = serverUrl + '/api/v1/forms/' + encodeURIComponent(formData.formId) + '/deploy';
+    // Export the current spreadsheet as XLSX for upload
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = ss.getId();
+    
+    // Get the XLSX export URL
+    const xlsxUrl = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
+    
+    // Fetch the XLSX file content
+    const xlsxBlob = UrlFetchApp.fetch(xlsxUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + ScriptApp.getOAuthToken()
+      }
+    }).getBlob();
+    
+    // Set filename for the blob
+    xlsxBlob.setName(formData.formId + '.xlsx');
+    
+    // SurveyCTO form upload endpoint
+    // The actual API endpoint for uploading forms
+    const uploadUrl = serverUrl + '/api/v2/forms/upload';
+    
+    // Create multipart form data
+    const boundary = '----WebKitFormBoundary' + Utilities.getUuid();
+    
+    // Build the multipart payload
+    const payload = Utilities.newBlob(
+      '--' + boundary + '\r\n' +
+      'Content-Disposition: form-data; name="form_file"; filename="' + formData.formId + '.xlsx"\r\n' +
+      'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n'
+    ).getBytes()
+    .concat(xlsxBlob.getBytes())
+    .concat(Utilities.newBlob('\r\n--' + boundary + '--\r\n').getBytes());
+    
     const options = {
       method: 'post',
       headers: {
         'Authorization': 'Basic ' + Utilities.base64Encode(creds.username + ':' + creds.password),
-        'Content-Type': 'application/json'
+        'Content-Type': 'multipart/form-data; boundary=' + boundary
       },
-      payload: JSON.stringify({
-        message: formData.message,
-        version: logged.version
-      }),
+      payload: payload,
       muteHttpExceptions: true
     };
     
-    const response = UrlFetchApp.fetch(url, options);
+    const response = UrlFetchApp.fetch(uploadUrl, options);
     const code = response.getResponseCode();
+    const responseText = response.getContentText();
     
     if (code >= 200 && code < 300) {
       updateDeploymentStatus(formData.formId, 'Success');
       return {
         success: true,
-        message: 'Form deployed successfully!',
+        message: 'Form deployed successfully to SurveyCTO!',
         version: logged.version,
         deployment: logged
       };
     } else if (code === 401) {
-      updateDeploymentStatus(formData.formId, 'Failed');
+      updateDeploymentStatus(formData.formId, 'Failed - Auth');
       return {
         success: false,
         message: 'Authentication failed. Please check your credentials.'
       };
-    } else if (code === 404) {
-      // Form deployment endpoint might not exist - still log as success
-      updateDeploymentStatus(formData.formId, 'Logged');
+    } else if (code === 404 || code === 405) {
+      // API endpoint might not be available on all servers
+      // Fall back to logging only
+      updateDeploymentStatus(formData.formId, 'Logged (Manual deploy required)');
       return {
         success: true,
-        message: 'Deployment logged (API endpoint not available).',
+        message: 'Deployment logged. Version: ' + logged.version + '. Note: Automatic upload not available - please deploy manually via SurveyCTO console.',
         version: logged.version,
-        deployment: logged
+        deployment: logged,
+        requiresManualDeploy: true
       };
     } else {
       updateDeploymentStatus(formData.formId, 'Failed');
+      
+      // Try to parse error message from response
+      let errorMsg = 'Deployment failed with status: ' + code;
+      try {
+        const errorJson = JSON.parse(responseText);
+        if (errorJson.message || errorJson.error) {
+          errorMsg = errorJson.message || errorJson.error;
+        }
+      } catch (e) {
+        // Use raw response if not JSON
+        if (responseText && responseText.length < 200) {
+          errorMsg += ' - ' + responseText;
+        }
+      }
+      
       return {
         success: false,
-        message: 'Deployment failed with status: ' + code
+        message: errorMsg
       };
     }
   } catch (error) {
-    // If there's a network error, still mark as logged
+    // If there's a network error or other issue, still log the deployment
     if (formData.formId) {
-      updateDeploymentStatus(formData.formId, 'Logged (Offline)');
+      try {
+        updateDeploymentStatus(formData.formId, 'Logged (Offline)');
+      } catch (e) {
+        // Ignore logging errors
+      }
     }
     return {
       success: true,
-      message: 'Deployment logged locally. API call failed: ' + error.message,
-      version: getNextVersion(formData.formId)
+      message: 'Deployment logged locally (Version: ' + getNextVersion(formData.formId) + '). API call failed: ' + error.message,
+      version: getNextVersion(formData.formId),
+      requiresManualDeploy: true
     };
   }
 }
