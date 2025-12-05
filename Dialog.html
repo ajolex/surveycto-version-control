@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #202124;
+    }
+    
+    h2 {
+      font-size: 20px;
+      font-weight: 500;
+      margin: 0 0 20px 0;
+      color: #202124;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #202124;
+      margin-bottom: 6px;
+    }
+    
+    .required::after {
+      content: ' *';
+      color: #c5221f;
+    }
+    
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    input[type="text"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    
+    input[type="text"]:disabled,
+    select:disabled,
+    textarea:disabled {
+      background-color: #f1f3f4;
+      cursor: not-allowed;
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .hint {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 4px;
+    }
+    
+    .error-text {
+      font-size: 12px;
+      color: #c5221f;
+      margin-top: 4px;
+      display: none;
+    }
+    
+    .btn-container {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #dadce0;
+    }
+    
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #1557b0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    
+    .btn-secondary {
+      background-color: white;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    
+    .status-success {
+      background-color: #e6f4ea;
+      color: #137333;
+    }
+    
+    .status-error {
+      background-color: #fce8e6;
+      color: #c5221f;
+    }
+    
+    .status-info {
+      background-color: #e8f0fe;
+      color: #1a73e8;
+    }
+    
+    .loader {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #dadce0;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .version-preview {
+      background-color: #e8f0fe;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    
+    .version-preview strong {
+      color: #1a73e8;
+    }
+  </style>
+</head>
+<body>
+  <h2>🚀 Deploy Form</h2>
+  
+  <div id="statusMessage" class="status" style="display: none;"></div>
+  
+  <div id="versionPreview" class="version-preview" style="display: none;">
+    Next version: <strong id="nextVersion">v1.0</strong>
+  </div>
+  
+  <form id="deployForm" onsubmit="return false;">
+    <div class="form-group">
+      <label for="formSelect" class="required">Form</label>
+      <select id="formSelect" onchange="updateFormName()">
+        <option value="">Loading forms...</option>
+      </select>
+      <input type="hidden" id="formName" value="">
+      <div class="hint">Select the form to deploy</div>
+      <div id="formError" class="error-text">Please select a form</div>
+    </div>
+    
+    <div class="form-group">
+      <label for="formIdManual">Or enter Form ID manually</label>
+      <input type="text" id="formIdManual" placeholder="e.g., my_survey_form" onchange="updateManualFormId()">
+      <div class="hint">Use this if the form is not in the dropdown</div>
+    </div>
+    
+    <div class="form-group">
+      <label for="message" class="required">Deployment Message</label>
+      <textarea id="message" placeholder="Describe the changes in this deployment (like a Git commit message)"></textarea>
+      <div class="hint">Describe what changed in this version</div>
+      <div id="messageError" class="error-text">Please enter a deployment message</div>
+    </div>
+    
+    <div class="btn-container">
+      <button type="button" class="btn btn-secondary" onclick="closeDialog()">Cancel</button>
+      <button type="button" id="submitBtn" class="btn btn-primary" onclick="submitDeploy()">
+        Deploy
+      </button>
+    </div>
+  </form>
+
+  <script>
+    let forms = [];
+    let selectedFormId = '';
+    let selectedFormName = '';
+    
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', function() {
+      loadForms();
+    });
+    
+    function showStatus(message, type) {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.innerHTML = message;
+      statusEl.className = 'status status-' + type;
+      statusEl.style.display = 'block';
+    }
+    
+    function hideStatus() {
+      document.getElementById('statusMessage').style.display = 'none';
+    }
+    
+    function showError(fieldId, show) {
+      const errorEl = document.getElementById(fieldId + 'Error');
+      if (errorEl) {
+        errorEl.style.display = show ? 'block' : 'none';
+      }
+    }
+    
+    function loadForms() {
+      const select = document.getElementById('formSelect');
+      select.innerHTML = '<option value="">Loading forms...</option>';
+      select.disabled = true;
+      
+      google.script.run
+        .withSuccessHandler(function(loadedForms) {
+          forms = loadedForms || [];
+          
+          if (forms.length === 0) {
+            select.innerHTML = '<option value="">No forms found - enter ID manually below</option>';
+          } else {
+            let html = '<option value="">-- Select a form --</option>';
+            forms.forEach(function(form) {
+              html += '<option value="' + escapeHtml(form.id) + '">' + escapeHtml(form.name || form.id) + '</option>';
+            });
+            select.innerHTML = html;
+          }
+          select.disabled = false;
+        })
+        .withFailureHandler(function(error) {
+          select.innerHTML = '<option value="">Error loading forms - enter ID manually below</option>';
+          select.disabled = false;
+          console.error('Error loading forms:', error);
+        })
+        .getForms();
+    }
+    
+    function updateFormName() {
+      const select = document.getElementById('formSelect');
+      selectedFormId = select.value;
+      
+      // Clear manual input if dropdown is used
+      if (selectedFormId) {
+        document.getElementById('formIdManual').value = '';
+      }
+      
+      // Find form name
+      const form = forms.find(function(f) { return f.id === selectedFormId; });
+      selectedFormName = form ? form.name : selectedFormId;
+      document.getElementById('formName').value = selectedFormName;
+      
+      // Update version preview
+      if (selectedFormId) {
+        updateVersionPreview(selectedFormId);
+      } else {
+        document.getElementById('versionPreview').style.display = 'none';
+      }
+      
+      showError('form', false);
+    }
+    
+    function updateManualFormId() {
+      const manualInput = document.getElementById('formIdManual');
+      const manualId = manualInput.value.trim();
+      
+      if (manualId) {
+        // Clear dropdown if manual input is used
+        document.getElementById('formSelect').value = '';
+        selectedFormId = manualId;
+        selectedFormName = manualId;
+        document.getElementById('formName').value = manualId;
+        updateVersionPreview(manualId);
+      }
+    }
+    
+    function updateVersionPreview(formId) {
+      google.script.run
+        .withSuccessHandler(function(version) {
+          document.getElementById('nextVersion').textContent = version;
+          document.getElementById('versionPreview').style.display = 'block';
+        })
+        .withFailureHandler(function(error) {
+          console.error('Error getting version:', error);
+        })
+        .getNextVersion(formId);
+    }
+    
+    function validateForm() {
+      let isValid = true;
+      
+      // Check form ID
+      const formId = selectedFormId || document.getElementById('formIdManual').value.trim();
+      if (!formId) {
+        showError('form', true);
+        isValid = false;
+      } else {
+        showError('form', false);
+      }
+      
+      // Check message
+      const message = document.getElementById('message').value.trim();
+      if (!message) {
+        showError('message', true);
+        isValid = false;
+      } else {
+        showError('message', false);
+      }
+      
+      return isValid;
+    }
+    
+    function submitDeploy() {
+      if (!validateForm()) {
+        return;
+      }
+      
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loader"></span>Deploying...';
+      
+      const formId = selectedFormId || document.getElementById('formIdManual').value.trim();
+      const formName = selectedFormName || formId;
+      const message = document.getElementById('message').value.trim();
+      
+      const formData = {
+        formId: formId,
+        formName: formName,
+        message: message
+      };
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Deploy';
+          
+          if (result.success) {
+            showStatus('✅ ' + result.message + '<br>Version: <strong>' + result.version + '</strong>', 'success');
+            
+            // Close dialog after 2 seconds
+            setTimeout(function() {
+              google.script.host.close();
+            }, 2000);
+          } else {
+            showStatus('❌ ' + result.message, 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Deploy';
+          showStatus('❌ Error: ' + error.message, 'error');
+        })
+        .deployForm(formData);
+    }
+    
+    function closeDialog() {
+      google.script.host.close();
+    }
+    
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
