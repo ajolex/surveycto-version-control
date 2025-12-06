@@ -1,6 +1,6 @@
 # SurveyCTO Version Control
 
-Automatic version tracking for SurveyCTO forms with zero manual data entry.
+Automatic version tracking for SurveyCTO forms to keep track of revisions or changes for each form deployement.
 
 ## What It Does
 
@@ -8,9 +8,7 @@ When you deploy a form to SurveyCTO, our system automatically:
 1. Detects the successful deployment
 2. Captures the version number from the server
 3. Logs it to your Google Sheet with a timestamp
-4. Records your deployment notes (optional)
-
-**That's it. No manual copying. No manual logging. Completely automatic.**
+4. Records your deployment notes. Like a Git Commit message.
 
 ## Quick Start (5 Minutes)
 
