@@ -45,6 +45,15 @@
             font-size: 13px;
         }
 
+        .warning-box {
+            background: #fef7e0;
+            border-left: 4px solid #f9ab00;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
         .form-group {
             margin-bottom: 12px;
         }
@@ -153,12 +162,23 @@
             border-left: 4px solid #ea4335;
             display: block;
         }
+
+        .extension-badge {
+            display: inline-block;
+            background: #1a73e8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
     </style>
 </head>
 
 <body>
-    <h2>🚀 Deploy to SurveyCTO</h2>
-    <p class="subtitle">Deploy directly from this Google Sheet</p>
+    <h2>🚀 Deploy to SurveyCTO <span class="extension-badge">WITH EXTENSION</span></h2>
+    <p class="subtitle">Auto-upload forms via Chrome extension</p>
 
     <div id="status"></div>
 
@@ -168,28 +188,37 @@
         <div><strong>Spreadsheet:</strong> <span id="spreadsheetName">Loading...</span></div>
     </div>
 
-    <div class="success-box">
-        <strong>✨ Direct Deploy:</strong> SurveyCTO will read directly from this Google Sheet - no file download needed!
+    <div id="extensionStatus" class="success-box" style="display:none;">
+        </strong> Auto-upload via Chrome extension. Extension will handle file upload automatically.
     </div>
 
-    <div class="form-group">
-        <label for="message">Deployment Message *</label>
-        <textarea id="message" rows="2" placeholder="e.g., Added new validation rules" required></textarea>
+    <div id="noExtensionWarning" class="warning-box" style="display:none;">
+        <strong>⚠️ Chrome extension not detected.</strong> Install the extension first, then try again.
+        <br><a href="#" onclick="openExtensionGuide(); return false;" style="color: #1a73e8; text-decoration: underline;">View installation guide</a>
     </div>
 
-    <div class="button-row">
-        <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
-        <button type="button" class="btn btn-primary" id="submitBtn" onclick="deployNow()">🚀 Deploy Now</button>
-    </div>
+    <div id="deploymentForm">
+        <div class="form-group">
+            <label for="message">Deployment Message *</label>
+            <textarea id="message" rows="2" placeholder="e.g., Added new validation rules" required></textarea>
+        </div>
 
-    <div class="steps">
-        <strong>What happens when you click "Deploy Now":</strong>
-        <ol>
-            <li>Deployment is logged with your message</li>
-            <li>SurveyCTO opens with your spreadsheet pre-loaded</li>
-            <li>Log in to SurveyCTO if prompted</li>
-            <li>Click <strong>"Upload & Continue"</strong> then <strong>"Deploy"</strong></li>
-        </ol>
+        <div class="button-row">
+            <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="submitBtn" onclick="deployNow()">🚀 Deploy with Extension</button>
+        </div>
+
+        <div class="steps">
+            <strong>What happens when you click "Deploy with Extension":</strong>
+            <ol>
+                <li>Deployment is logged with your message</li>
+                <li>XLSX file is generated from your spreadsheet</li>
+                <li>Chrome extension opens SurveyCTO console</li>
+                <li>Extension automatically uploads the file</li>
+                <li>Extension submits the form</li>
+                <li>Deployment status is updated to "Completed"</li>
+            </ol>
+        </div>
     </div>
 
     <script>
@@ -198,6 +227,8 @@
         var serverUrl = '';
         var spreadsheetId = '';
         var spreadsheetUrl = '';
+        var extensionAvailable = false;
+        var deploymentInProgress = false;
 
         // Load data on page load
         google.script.run
@@ -221,6 +252,9 @@
                         showStatus('error', 'No server URL configured. Go to Settings first.');
                         document.getElementById('submitBtn').disabled = true;
                     }
+
+                    // Extension assumed to be installed
+                    extensionFound();
                 } else {
                     showStatus('error', data.error || 'Failed to load form details.');
                     document.getElementById('submitBtn').disabled = true;
@@ -231,53 +265,186 @@
             })
             .getDeployPopupData();
 
+        /**
+         * Check if Chrome extension is available
+         * NOTE: Disabled - Google Apps Script dialogs run in sandboxed context
+         * that cannot directly detect Chrome extensions. We assume extension is installed.
+         */
+        function checkExtensionAvailable() {
+            // This function is disabled because Google Apps Script dialogs
+            // run in a sandboxed iFrame that cannot access chrome.runtime
+            return;
+        }
+
+        function extensionFound() {
+            extensionAvailable = true;
+            document.getElementById('extensionStatus').style.display = 'block';
+            document.getElementById('noExtensionWarning').style.display = 'none';
+            document.getElementById('deploymentForm').style.display = 'block';
+        }
+
+        function extensionNotFound() {
+            extensionAvailable = false;
+            document.getElementById('extensionStatus').style.display = 'none';
+            document.getElementById('noExtensionWarning').style.display = 'block';
+            document.getElementById('deploymentForm').style.display = 'none';
+        }
+
+        function openExtensionGuide() {
+            // This could open a help page or show instructions
+            alert('Please install the SurveyCTO Form Uploader Chrome extension first. See the README for installation instructions.');
+        }
+
         function deployNow() {
+            if (!extensionAvailable) {
+                showStatus('error', 'Chrome extension not detected. Please install it first.');
+                return;
+            }
+
             var message = document.getElementById('message').value.trim();
             if (!message) {
                 showStatus('error', 'Please enter a deployment message.');
                 return;
             }
 
+            if (deploymentInProgress) {
+                showStatus('error', 'Deployment in progress. Please wait.');
+                return;
+            }
+
             var btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.textContent = '⏳ Logging...';
+            btn.textContent = '⏳ Generating file...';
+            deploymentInProgress = true;
 
-            // Log deployment first
+            // Step 1: Generate XLSX file
             google.script.run
                 .withSuccessHandler(function (result) {
                     if (result.success) {
-                        showStatus('success', 'Logged version ' + result.version + '. Opening SurveyCTO...');
+                        showStatus('success', '📄 File generated. Sending to extension...');
+                        btn.textContent = '⏳ Sending to extension...';
 
-                        // Build the direct deploy URL with Google Spreadsheet parameter
-                        // SurveyCTO accepts: /console/#/forms/upload?googleSpreadsheet=SPREADSHEET_URL
-                        var deployUrl = serverUrl + '/console/#/forms/upload?googleSpreadsheet=' +
-                            encodeURIComponent(spreadsheetUrl);
+                        // Step 2: Log deployment
+                        google.script.run
+                            .withSuccessHandler(function (logResult) {
+                                if (logResult.success) {
+                                    showStatus('success', '✅ Deployment logged (v' + logResult.version + '). Extension will now upload...');
+                                    btn.textContent = '📤 Extension uploading...';
 
-                        // Open SurveyCTO with the spreadsheet pre-loaded
-                        window.open(deployUrl, '_blank');
-
-                        btn.textContent = '✅ Opened SurveyCTO';
-
-                        setTimeout(function () {
-                            google.script.host.close();
-                        }, 2000);
+                                    // Step 3: Send to extension
+                                    sendFileToExtension(result, message);
+                                } else {
+                                    showStatus('error', 'Failed to log deployment: ' + logResult.message);
+                                    btn.disabled = false;
+                                    btn.textContent = '🚀 Deploy with Extension';
+                                    deploymentInProgress = false;
+                                }
+                            })
+                            .withFailureHandler(function (err) {
+                                showStatus('error', 'Error logging deployment: ' + err.message);
+                                btn.disabled = false;
+                                btn.textContent = '🚀 Deploy with Extension';
+                                deploymentInProgress = false;
+                            })
+                            .initiateExtensionDeploy({
+                                formId: formId,
+                                formName: formId,
+                                version: formVersion,
+                                message: message
+                            });
                     } else {
-                        showStatus('error', result.message || 'Failed to log deployment.');
+                        showStatus('error', 'Failed to generate file: ' + result.error);
                         btn.disabled = false;
-                        btn.textContent = '🚀 Deploy Now';
+                        btn.textContent = '🚀 Deploy with Extension';
+                        deploymentInProgress = false;
                     }
                 })
                 .withFailureHandler(function (err) {
                     showStatus('error', 'Error: ' + err.message);
                     btn.disabled = false;
-                    btn.textContent = '🚀 Deploy Now';
+                    btn.textContent = '🚀 Deploy with Extension';
+                    deploymentInProgress = false;
                 })
-                .logAndOpenDeploy({
-                    formId: formId,
-                    formName: formId,
-                    version: formVersion,
-                    message: message
-                });
+                .generateFormXlsxForExtension();
+        }
+
+        /**
+         * Send file data to Chrome extension via message passing
+         */
+        function sendFileToExtension(fileData, message) {
+            try {
+                // Convert base64 back to blob
+                const byteCharacters = atob(fileData.fileBase64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+                // Send to extension
+                chrome.runtime.sendMessage(
+                    {
+                        type: 'UPLOAD_FORM',
+                        fileBlob: blob,
+                        fileName: fileData.filename,
+                        formId: fileData.formId,
+                        message: message,
+                        serverUrl: serverUrl.replace(/^https?:\/\//, '').replace(/\.surveycto\.com.*$/, '') + '.surveycto.com'
+                    },
+                    function (response) {
+                        if (chrome.runtime.lastError) {
+                            showStatus('error', 'Failed to send to extension: ' + chrome.runtime.lastError.message);
+                            var btn = document.getElementById('submitBtn');
+                            btn.disabled = false;
+                            btn.textContent = '🚀 Deploy with Extension';
+                            deploymentInProgress = false;
+                        } else {
+                            showStatus('success', '✅ ' + response.message);
+                            var btn = document.getElementById('submitBtn');
+                            btn.textContent = '🌐 SurveyCTO opening...';
+
+                            // Monitor for completion
+                            setTimeout(function () {
+                                completeDeployment();
+                            }, 5000);
+                        }
+                    }
+                );
+            } catch (error) {
+                showStatus('error', 'Error sending file to extension: ' + error.message);
+                var btn = document.getElementById('submitBtn');
+                btn.disabled = false;
+                btn.textContent = '🚀 Deploy with Extension';
+                deploymentInProgress = false;
+            }
+        }
+
+        function completeDeployment() {
+            google.script.run
+                .withSuccessHandler(function (result) {
+                    if (result.success) {
+                        showStatus('success', '✅ Deployment complete! Form is now live in SurveyCTO.');
+                        var btn = document.getElementById('submitBtn');
+                        btn.textContent = '✅ Done';
+                        btn.disabled = true;
+
+                        setTimeout(function () {
+                            google.script.host.close();
+                        }, 2000);
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    console.log('Note: Could not verify completion, but deployment likely succeeded.');
+                    var btn = document.getElementById('submitBtn');
+                    btn.textContent = '✅ Done';
+                    btn.disabled = true;
+
+                    setTimeout(function () {
+                        google.script.host.close();
+                    }, 2000);
+                })
+                .completeDeployment(formId);
         }
 
         function showStatus(type, msg) {

@@ -292,6 +292,91 @@ function downloadFormAsXlsx() {
 }
 
 // ============================================
+// SOLUTION 2: CHROME EXTENSION INTEGRATION
+// ============================================
+
+/**
+ * Generates XLSX and prepares for Chrome extension upload
+ */
+function generateFormXlsxForExtension() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const formDetails = getFormDetailsFromSpreadsheet();
+  
+  if (!formDetails.found) {
+    return { success: false, error: formDetails.error };
+  }
+  
+  try {
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+    const filename = (formDetails.formId || 'form') + '_' + timestamp + '.xlsx';
+    
+    // Generate XLSX blob
+    const xlsxUrl = 'https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx';
+    const xlsxBlob = UrlFetchApp.fetch(xlsxUrl, { 
+      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: false
+    }).getBlob();
+    
+    if (!xlsxBlob || xlsxBlob.getBytes().length === 0) {
+      return { success: false, error: 'Failed to generate XLSX file.' };
+    }
+    
+    // Convert blob to base64 for transfer to extension
+    const fileBytes = xlsxBlob.getBytes();
+    const base64File = Utilities.base64Encode(fileBytes);
+    
+    return {
+      success: true,
+      filename: filename,
+      fileBase64: base64File,
+      formId: formDetails.formId,
+      formTitle: formDetails.formTitle,
+      version: formDetails.version
+    };
+  } catch (error) {
+    return { success: false, error: 'Error generating file: ' + error.message };
+  }
+}
+
+/**
+ * Initiate deployment via Chrome extension
+ * Logs deployment and signals extension to start upload
+ */
+function initiateExtensionDeploy(deployData) {
+  try {
+    // Log deployment as pending
+    const logged = logDeployment({
+      formId: deployData.formId,
+      formName: deployData.formName || deployData.formId,
+      version: deployData.version,
+      message: deployData.message,
+      status: 'Pending - Extension Upload'
+    });
+    
+    return {
+      success: true,
+      message: 'Deployment logged. Extension will handle upload.',
+      version: logged.version,
+      deployment: logged
+    };
+  } catch (error) {
+    return { success: false, message: 'Failed to log: ' + error.message };
+  }
+}
+
+/**
+ * Mark deployment as completed after extension confirms
+ */
+function completeDeployment(formId) {
+  try {
+    updateDeploymentStatus(formId, 'Completed');
+    return { success: true, message: 'Deployment marked as completed.' };
+  } catch (error) {
+    return { success: false, message: 'Failed to update status: ' + error.message };
+  }
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
