@@ -1,36 +1,37 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <style>
     * {
       box-sizing: border-box;
     }
-    
+
     body {
       font-family: 'Google Sans', Roboto, Arial, sans-serif;
       margin: 0;
       padding: 20px;
       color: #202124;
     }
-    
+
     h2 {
       font-size: 20px;
       font-weight: 500;
       margin: 0 0 8px 0;
       color: #202124;
     }
-    
+
     .subtitle {
       font-size: 14px;
       color: #5f6368;
       margin-bottom: 20px;
     }
-    
+
     .form-group {
       margin-bottom: 16px;
     }
-    
+
     label {
       display: block;
       font-size: 14px;
@@ -38,12 +39,12 @@
       color: #202124;
       margin-bottom: 6px;
     }
-    
+
     .required::after {
       content: ' *';
       color: #c5221f;
     }
-    
+
     input[type="text"],
     input[type="password"] {
       width: 100%;
@@ -54,26 +55,26 @@
       font-family: inherit;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    
+
     input[type="text"]:focus,
     input[type="password"]:focus {
       outline: none;
       border-color: #1a73e8;
       box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
     }
-    
+
     input[type="text"]:disabled,
     input[type="password"]:disabled {
       background-color: #f1f3f4;
       cursor: not-allowed;
     }
-    
+
     .hint {
       font-size: 12px;
       color: #5f6368;
       margin-top: 4px;
     }
-    
+
     .btn-container {
       display: flex;
       justify-content: space-between;
@@ -82,12 +83,12 @@
       padding-top: 16px;
       border-top: 1px solid #dadce0;
     }
-    
+
     .btn-group {
       display: flex;
       gap: 8px;
     }
-    
+
     .btn {
       padding: 10px 24px;
       border: none;
@@ -97,73 +98,73 @@
       cursor: pointer;
       transition: background-color 0.2s, box-shadow 0.2s;
     }
-    
+
     .btn-primary {
       background-color: #1a73e8;
       color: white;
     }
-    
+
     .btn-primary:hover {
       background-color: #1557b0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
-    
+
     .btn-secondary {
       background-color: white;
       color: #5f6368;
       border: 1px solid #dadce0;
     }
-    
+
     .btn-secondary:hover {
       background-color: #f8f9fa;
     }
-    
+
     .btn-danger {
       background-color: white;
       color: #c5221f;
       border: 1px solid #dadce0;
     }
-    
+
     .btn-danger:hover {
       background-color: #fce8e6;
     }
-    
+
     .btn-test {
       background-color: #34a853;
       color: white;
     }
-    
+
     .btn-test:hover {
       background-color: #2d8e47;
     }
-    
+
     .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    
+
     .status {
       padding: 12px;
       border-radius: 4px;
       margin-bottom: 16px;
       font-size: 14px;
     }
-    
+
     .status-success {
       background-color: #e6f4ea;
       color: #137333;
     }
-    
+
     .status-error {
       background-color: #fce8e6;
       color: #c5221f;
     }
-    
+
     .status-info {
       background-color: #e8f0fe;
       color: #1a73e8;
     }
-    
+
     .loader {
       display: inline-block;
       width: 16px;
@@ -175,11 +176,13 @@
       margin-right: 8px;
       vertical-align: middle;
     }
-    
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-    
+
     .security-notice {
       background-color: #fef7e0;
       border: 1px solid #fdd663;
@@ -188,19 +191,19 @@
       margin-bottom: 16px;
       font-size: 13px;
     }
-    
+
     .security-notice strong {
       color: #ea8600;
     }
-    
+
     .password-toggle {
       position: relative;
     }
-    
+
     .password-toggle input {
       padding-right: 40px;
     }
-    
+
     .toggle-btn {
       position: absolute;
       right: 8px;
@@ -212,35 +215,37 @@
       padding: 4px;
       color: #5f6368;
     }
-    
+
     .toggle-btn:hover {
       color: #202124;
     }
   </style>
 </head>
+
 <body>
   <h2>⚙️ Settings</h2>
   <p class="subtitle">Configure your SurveyCTO API credentials</p>
-  
+
   <div id="statusMessage" class="status" style="display: none;"></div>
-  
+
   <div class="security-notice">
-    <strong>🔒 Security Note:</strong> Your credentials are stored securely using Google's Properties Service and are only accessible to you.
+    <strong>🔒 Security Note:</strong> Your credentials are stored securely using Google's Properties Service and are
+    only accessible to you.
   </div>
-  
+
   <form id="settingsForm" onsubmit="return false;">
     <div class="form-group">
       <label for="serverUrl" class="required">Server URL</label>
       <input type="text" id="serverUrl" placeholder="your-server-name">
       <div class="hint">Enter your SurveyCTO server name (e.g., "myorg" for myorg.surveycto.com)</div>
     </div>
-    
+
     <div class="form-group">
       <label for="username" class="required">Username / Email</label>
       <input type="text" id="username" placeholder="your-email@example.com">
       <div class="hint">Your SurveyCTO account email</div>
     </div>
-    
+
     <div class="form-group">
       <label for="password" class="required">Password / API Key</label>
       <div class="password-toggle">
@@ -249,11 +254,12 @@
       </div>
       <div class="hint">Your SurveyCTO password or API key</div>
     </div>
-    
-    <button type="button" id="testBtn" class="btn btn-test" onclick="testConnection()" style="width: 100%; margin-bottom: 16px;">
+
+    <button type="button" id="testBtn" class="btn btn-test" onclick="testConnection()"
+      style="width: 100%; margin-bottom: 16px;">
       🔗 Test Connection
     </button>
-    
+
     <div class="btn-container">
       <button type="button" id="clearBtn" class="btn btn-danger" onclick="clearCredentials()">
         Clear
@@ -269,24 +275,24 @@
 
   <script>
     // Initialize on load
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       loadCredentials();
     });
-    
+
     function showStatus(message, type) {
       const statusEl = document.getElementById('statusMessage');
       statusEl.innerHTML = message;
       statusEl.className = 'status status-' + type;
       statusEl.style.display = 'block';
     }
-    
+
     function hideStatus() {
       document.getElementById('statusMessage').style.display = 'none';
     }
-    
+
     function loadCredentials() {
       google.script.run
-        .withSuccessHandler(function(credentials) {
+        .withSuccessHandler(function (credentials) {
           if (credentials) {
             document.getElementById('serverUrl').value = credentials.serverUrl || '';
             document.getElementById('username').value = credentials.username || '';
@@ -296,12 +302,12 @@
             }
           }
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           console.error('Error loading credentials:', error);
         })
         .getCredentials();
     }
-    
+
     function togglePassword() {
       const passwordInput = document.getElementById('password');
       if (passwordInput.type === 'password') {
@@ -310,98 +316,98 @@
         passwordInput.type = 'password';
       }
     }
-    
+
     function testConnection() {
       const testBtn = document.getElementById('testBtn');
       testBtn.disabled = true;
       testBtn.innerHTML = '<span class="loader"></span>Testing...';
-      
+
       // First save the current values
       const credentials = {
         serverUrl: document.getElementById('serverUrl').value.trim(),
         username: document.getElementById('username').value.trim(),
         password: document.getElementById('password').value
       };
-      
+
       // Only include password if it was changed (not empty)
       if (!credentials.password) {
         delete credentials.password;
       }
-      
+
       google.script.run
-        .withSuccessHandler(function() {
+        .withSuccessHandler(function () {
           // Now test the connection
           google.script.run
-            .withSuccessHandler(function(result) {
+            .withSuccessHandler(function (result) {
               testBtn.disabled = false;
               testBtn.innerHTML = '🔗 Test Connection';
-              
+
               if (result.success) {
                 showStatus('✅ ' + result.message, 'success');
               } else {
                 showStatus('❌ ' + result.message, 'error');
               }
             })
-            .withFailureHandler(function(error) {
+            .withFailureHandler(function (error) {
               testBtn.disabled = false;
               testBtn.innerHTML = '🔗 Test Connection';
               showStatus('❌ Error: ' + error.message, 'error');
             })
             .testConnection();
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           testBtn.disabled = false;
           testBtn.innerHTML = '🔗 Test Connection';
           showStatus('❌ Error saving: ' + error.message, 'error');
         })
         .saveCredentials(credentials);
     }
-    
+
     function saveSettings() {
       const saveBtn = document.getElementById('saveBtn');
       saveBtn.disabled = true;
       saveBtn.innerHTML = '<span class="loader"></span>Saving...';
-      
+
       const credentials = {
         serverUrl: document.getElementById('serverUrl').value.trim(),
         username: document.getElementById('username').value.trim(),
         password: document.getElementById('password').value
       };
-      
+
       // Only include password if it was changed (not empty)
       if (!credentials.password) {
         delete credentials.password;
       }
-      
+
       google.script.run
-        .withSuccessHandler(function() {
+        .withSuccessHandler(function () {
           saveBtn.disabled = false;
           saveBtn.textContent = 'Save';
           showStatus('✅ Settings saved successfully!', 'success');
-          
+
           // Close dialog after 1.5 seconds
-          setTimeout(function() {
+          setTimeout(function () {
             google.script.host.close();
           }, 1500);
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           saveBtn.disabled = false;
           saveBtn.textContent = 'Save';
           showStatus('❌ Error: ' + error.message, 'error');
         })
         .saveCredentials(credentials);
     }
-    
+
     function clearCredentials() {
       if (!confirm('Are you sure you want to clear all stored credentials?')) {
         return;
       }
-      
+
       const clearBtn = document.getElementById('clearBtn');
       clearBtn.disabled = true;
-      
+
       google.script.run
-        .withSuccessHandler(function() {
+        .withSuccessHandler(function () {
           clearBtn.disabled = false;
           document.getElementById('serverUrl').value = '';
           document.getElementById('username').value = '';
@@ -409,16 +415,17 @@
           document.getElementById('password').placeholder = 'Enter your password or API key';
           showStatus('✅ Credentials cleared.', 'success');
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           clearBtn.disabled = false;
           showStatus('❌ Error: ' + error.message, 'error');
         })
         .clearCredentials();
     }
-    
+
     function closeDialog() {
       google.script.host.close();
     }
   </script>
 </body>
+
 </html>

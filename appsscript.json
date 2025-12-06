@@ -10,20 +10,5 @@
     "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive.readonly"
-  ],
-  "addOns": {
-    "common": {
-      "name": "SurveyCTO Version Control",
-      "logoUrl": "https://www.surveycto.com/wp-content/uploads/2021/06/icon-256x256.png",
-      "layoutProperties": {
-        "primaryColor": "#1a73e8",
-        "secondaryColor": "#4285f4"
-      }
-    },
-    "sheets": {
-      "homepageTrigger": {
-        "runFunction": "onOpen"
-      }
-    }
-  }
+  ]
 }

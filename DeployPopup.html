@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Google Sans', 'Roboto', Arial, sans-serif;
+        }
+
+        body {
+            padding: 16px;
+            margin: 0;
+            background: #fff;
+        }
+
+        h2 {
+            color: #1a73e8;
+            margin: 0 0 8px 0;
+            font-size: 20px;
+        }
+
+        .subtitle {
+            color: #5f6368;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .info-box {
+            background: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .success-box {
+            background: #e6f4ea;
+            border-left: 4px solid #34a853;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #202124;
+            font-size: 13px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+
+        .form-meta {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .form-meta strong {
+            color: #1a73e8;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1557b0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: #1a73e8;
+            border: 1px solid #dadce0;
+            margin-left: 8px;
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+            gap: 8px;
+        }
+
+        .steps {
+            font-size: 12px;
+            color: #5f6368;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .steps ol {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+        }
+
+        #status {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            display: none;
+        }
+
+        #status.success {
+            background: #e6f4ea;
+            color: #137333;
+            border-left: 4px solid #34a853;
+            display: block;
+        }
+
+        #status.error {
+            background: #fce8e6;
+            color: #c5221f;
+            border-left: 4px solid #ea4335;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>🚀 Deploy to SurveyCTO</h2>
+    <p class="subtitle">Deploy directly from this Google Sheet</p>
+
+    <div id="status"></div>
+
+    <div class="form-meta">
+        <div><strong>Form ID:</strong> <span id="formId">Loading...</span></div>
+        <div><strong>Version:</strong> <span id="formVersion">Loading...</span></div>
+        <div><strong>Spreadsheet:</strong> <span id="spreadsheetName">Loading...</span></div>
+    </div>
+
+    <div class="success-box">
+        <strong>✨ Direct Deploy:</strong> SurveyCTO will read directly from this Google Sheet - no file download needed!
+    </div>
+
+    <div class="form-group">
+        <label for="message">Deployment Message *</label>
+        <textarea id="message" rows="2" placeholder="e.g., Added new validation rules" required></textarea>
+    </div>
+
+    <div class="button-row">
+        <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="submitBtn" onclick="deployNow()">🚀 Deploy Now</button>
+    </div>
+
+    <div class="steps">
+        <strong>What happens when you click "Deploy Now":</strong>
+        <ol>
+            <li>Deployment is logged with your message</li>
+            <li>SurveyCTO opens with your spreadsheet pre-loaded</li>
+            <li>Log in to SurveyCTO if prompted</li>
+            <li>Click <strong>"Upload & Continue"</strong> then <strong>"Deploy"</strong></li>
+        </ol>
+    </div>
+
+    <script>
+        var formId = '';
+        var formVersion = '';
+        var serverUrl = '';
+        var spreadsheetId = '';
+        var spreadsheetUrl = '';
+
+        // Load data on page load
+        google.script.run
+            .withSuccessHandler(function (data) {
+                if (data.success) {
+                    formId = data.formId;
+                    formVersion = data.version;
+                    serverUrl = data.serverUrl;
+                    spreadsheetId = data.spreadsheetId;
+                    spreadsheetUrl = data.spreadsheetUrl;
+
+                    document.getElementById('formId').textContent = formId || 'Not detected';
+                    document.getElementById('formVersion').textContent = formVersion || 'Not set';
+                    document.getElementById('spreadsheetName').textContent = data.spreadsheetName || 'Current sheet';
+
+                    if (!formId) {
+                        showStatus('error', 'No form_id found in Settings sheet.');
+                        document.getElementById('submitBtn').disabled = true;
+                    }
+                    if (!serverUrl) {
+                        showStatus('error', 'No server URL configured. Go to Settings first.');
+                        document.getElementById('submitBtn').disabled = true;
+                    }
+                } else {
+                    showStatus('error', data.error || 'Failed to load form details.');
+                    document.getElementById('submitBtn').disabled = true;
+                }
+            })
+            .withFailureHandler(function (err) {
+                showStatus('error', 'Error: ' + err.message);
+            })
+            .getDeployPopupData();
+
+        function deployNow() {
+            var message = document.getElementById('message').value.trim();
+            if (!message) {
+                showStatus('error', 'Please enter a deployment message.');
+                return;
+            }
+
+            var btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Logging...';
+
+            // Log deployment first
+            google.script.run
+                .withSuccessHandler(function (result) {
+                    if (result.success) {
+                        showStatus('success', 'Logged version ' + result.version + '. Opening SurveyCTO...');
+
+                        // Build the direct deploy URL with Google Spreadsheet parameter
+                        // SurveyCTO accepts: /console/#/forms/upload?googleSpreadsheet=SPREADSHEET_URL
+                        var deployUrl = serverUrl + '/console/#/forms/upload?googleSpreadsheet=' +
+                            encodeURIComponent(spreadsheetUrl);
+
+                        // Open SurveyCTO with the spreadsheet pre-loaded
+                        window.open(deployUrl, '_blank');
+
+                        btn.textContent = '✅ Opened SurveyCTO';
+
+                        setTimeout(function () {
+                            google.script.host.close();
+                        }, 2000);
+                    } else {
+                        showStatus('error', result.message || 'Failed to log deployment.');
+                        btn.disabled = false;
+                        btn.textContent = '🚀 Deploy Now';
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    showStatus('error', 'Error: ' + err.message);
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Deploy Now';
+                })
+                .logAndOpenDeploy({
+                    formId: formId,
+                    formName: formId,
+                    version: formVersion,
+                    message: message
+                });
+        }
+
+        function showStatus(type, msg) {
+            var el = document.getElementById('status');
+            el.className = type;
+            el.textContent = msg;
+        }
+    </script>
+</body>
+
+</html>

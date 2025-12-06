@@ -5,7 +5,7 @@ A Google Sheets add-on for managing SurveyCTO form deployments with Git-like ver
 ## ✨ Features
 
 - **One-Click Deploy** - Deploy forms to SurveyCTO with a single click plus a commit message
-- **Auto-Versioning** - Automatic semantic versioning (v1.0 → v1.1 → v1.2, etc.)
+- **Timestamp/Custom Versioning** - Uses the `version` column from your Settings sheet (supports formulas)
 - **Version History** - Persistent deployment history in a dedicated sheet
 - **SurveyCTO API Integration** - Real deployments via the SurveyCTO API
 - **Secure Credentials** - Credentials stored securely using Google's Properties Service
@@ -40,7 +40,11 @@ A Google Sheets add-on for managing SurveyCTO form deployments with Git-like ver
 
 ### Method 2: Deploy as Add-on (Advanced)
 
-For organization-wide deployment, you can publish as a Google Workspace add-on. See [Google's documentation](https://developers.google.com/workspace/add-ons/how-tos/publish-add-on) for details.
+For organization-wide deployment, you can publish this as a Google Workspace **Editor Add-on**.
+
+> **Note**: This is an Editor Add-on (uses the Extensions menu), not a sidebar-only Workspace Add-on.
+
+See the detailed [Deployment Guide](deployment_guide.md) for step-by-step instructions on how to configure the Google Cloud Project and publish to the Marketplace.
 
 ## ⚙️ Configuration
 
@@ -98,7 +102,7 @@ The add-on automatically creates and maintains a "Version History" sheet with th
 
 | Column | Description |
 |--------|-------------|
-| Version | Auto-incremented version (v1.0, v1.1, etc.) |
+| Version | The version value captured from the Settings sheet |
 | Form ID | The SurveyCTO form identifier |
 | Form Name | Human-readable form name |
 | Deployed By | User who deployed |
@@ -112,11 +116,11 @@ This add-on is designed to work with SurveyCTO XLSForm spreadsheets. The standar
 
 | Sheet Name | Description |
 |------------|-------------|
-| **settings** | Form-level details including `form_id`, `form_title`, security settings |
+| **settings** | Form-level details including `form_id`, `form_title`, and `version` |
 | **survey** | All questions/fields with types (text, number, select) and logic |
 | **choices** | Options for multiple-choice questions, linked via `list_name` |
 
-The add-on automatically detects the `form_id` from your **Settings** sheet and uses it for version control. If your spreadsheet has the standard SurveyCTO structure, the form will be auto-detected when you open the Deploy dialog.
+The add-on automatically detects the `form_id` and `version` from your **Settings** sheet. The `version` column is required and can contain a static number or a formula (e.g., a timestamp).
 
 ## 🔧 Troubleshooting
 

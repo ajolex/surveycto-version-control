@@ -1,30 +1,31 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <style>
     * {
       box-sizing: border-box;
     }
-    
+
     body {
       font-family: 'Google Sans', Roboto, Arial, sans-serif;
       margin: 0;
       padding: 20px;
       color: #202124;
     }
-    
+
     h2 {
       font-size: 20px;
       font-weight: 500;
       margin: 0 0 20px 0;
       color: #202124;
     }
-    
+
     .form-group {
       margin-bottom: 16px;
     }
-    
+
     label {
       display: block;
       font-size: 14px;
@@ -32,12 +33,12 @@
       color: #202124;
       margin-bottom: 6px;
     }
-    
+
     .required::after {
       content: ' *';
       color: #c5221f;
     }
-    
+
     input[type="text"],
     select,
     textarea {
@@ -49,7 +50,7 @@
       font-family: inherit;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    
+
     input[type="text"]:focus,
     select:focus,
     textarea:focus {
@@ -57,32 +58,32 @@
       border-color: #1a73e8;
       box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
     }
-    
+
     input[type="text"]:disabled,
     select:disabled,
     textarea:disabled {
       background-color: #f1f3f4;
       cursor: not-allowed;
     }
-    
+
     textarea {
       resize: vertical;
       min-height: 80px;
     }
-    
+
     .hint {
       font-size: 12px;
       color: #5f6368;
       margin-top: 4px;
     }
-    
+
     .error-text {
       font-size: 12px;
       color: #c5221f;
       margin-top: 4px;
       display: none;
     }
-    
+
     .btn-container {
       display: flex;
       justify-content: flex-end;
@@ -91,7 +92,7 @@
       padding-top: 16px;
       border-top: 1px solid #dadce0;
     }
-    
+
     .btn {
       padding: 10px 24px;
       border: none;
@@ -101,54 +102,54 @@
       cursor: pointer;
       transition: background-color 0.2s, box-shadow 0.2s;
     }
-    
+
     .btn-primary {
       background-color: #1a73e8;
       color: white;
     }
-    
+
     .btn-primary:hover {
       background-color: #1557b0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
-    
+
     .btn-secondary {
       background-color: white;
       color: #5f6368;
       border: 1px solid #dadce0;
     }
-    
+
     .btn-secondary:hover {
       background-color: #f8f9fa;
     }
-    
+
     .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    
+
     .status {
       padding: 12px;
       border-radius: 4px;
       margin-bottom: 16px;
       font-size: 14px;
     }
-    
+
     .status-success {
       background-color: #e6f4ea;
       color: #137333;
     }
-    
+
     .status-error {
       background-color: #fce8e6;
       color: #c5221f;
     }
-    
+
     .status-info {
       background-color: #e8f0fe;
       color: #1a73e8;
     }
-    
+
     .loader {
       display: inline-block;
       width: 16px;
@@ -160,11 +161,13 @@
       margin-right: 8px;
       vertical-align: middle;
     }
-    
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-    
+
     .version-preview {
       background-color: #e8f0fe;
       padding: 8px 12px;
@@ -172,26 +175,27 @@
       margin-bottom: 16px;
       font-size: 14px;
     }
-    
+
     .version-preview strong {
       color: #1a73e8;
     }
   </style>
 </head>
+
 <body>
   <h2>🚀 Deploy Form</h2>
-  
+
   <div id="statusMessage" class="status" style="display: none;"></div>
-  
+
   <div id="spreadsheetInfo" class="version-preview" style="display: none;">
     <strong>📄 Detected from spreadsheet:</strong>
     <div id="detectedFormInfo" style="margin-top: 4px;"></div>
   </div>
-  
+
   <div id="versionPreview" class="version-preview" style="display: none;">
-    Next version: <strong id="nextVersion">v1.0</strong>
+    Last deployed: <strong id="lastVersion">None</strong>
   </div>
-  
+
   <form id="deployForm" onsubmit="return false;">
     <div class="form-group">
       <label for="formSelect" class="required">Form</label>
@@ -202,20 +206,21 @@
       <div class="hint">Select the form to deploy (detected from Settings sheet or SurveyCTO server)</div>
       <div id="formError" class="error-text">Please select a form</div>
     </div>
-    
+
     <div class="form-group">
       <label for="formIdManual">Or enter Form ID manually</label>
       <input type="text" id="formIdManual" placeholder="e.g., my_survey_form" onchange="updateManualFormId()">
       <div class="hint">Use this if the form is not in the dropdown</div>
     </div>
-    
+
     <div class="form-group">
       <label for="message" class="required">Deployment Message</label>
-      <textarea id="message" placeholder="Describe the changes in this deployment (like a Git commit message)"></textarea>
+      <textarea id="message"
+        placeholder="Describe the changes in this deployment (e.g., 'Added a relevance to question aj_marital_status based on aj_age')"></textarea>
       <div class="hint">Describe what changed in this version</div>
       <div id="messageError" class="error-text">Please enter a deployment message</div>
     </div>
-    
+
     <div class="btn-container">
       <button type="button" class="btn btn-secondary" onclick="closeDialog()">Cancel</button>
       <button type="button" id="submitBtn" class="btn btn-primary" onclick="submitDeploy()">
@@ -229,30 +234,30 @@
     let selectedFormId = '';
     let selectedFormName = '';
     let spreadsheetFormInfo = null;
-    
+
     // Initialize on load
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       loadFormInfo();
     });
-    
+
     function showStatus(message, type) {
       const statusEl = document.getElementById('statusMessage');
       statusEl.innerHTML = message;
       statusEl.className = 'status status-' + type;
       statusEl.style.display = 'block';
     }
-    
+
     function hideStatus() {
       document.getElementById('statusMessage').style.display = 'none';
     }
-    
+
     function showError(fieldId, show) {
       const errorEl = document.getElementById(fieldId + 'Error');
       if (errorEl) {
         errorEl.style.display = show ? 'block' : 'none';
       }
     }
-    
+
     /**
      * Load form info - first from spreadsheet, then from SurveyCTO API
      */
@@ -260,35 +265,36 @@
       const select = document.getElementById('formSelect');
       select.innerHTML = '<option value="">Checking spreadsheet...</option>';
       select.disabled = true;
-      
+
       // First, try to get form details from the spreadsheet's Settings sheet
       google.script.run
-        .withSuccessHandler(function(info) {
+        .withSuccessHandler(function (info) {
           spreadsheetFormInfo = info;
-          
+
           // Show detected form info
           if (info.spreadsheet && info.spreadsheet.found) {
             const infoDiv = document.getElementById('detectedFormInfo');
             infoDiv.innerHTML = 'Form ID: <strong>' + escapeHtml(info.spreadsheet.formId) + '</strong>' +
-              (info.spreadsheet.formTitle ? '<br>Title: ' + escapeHtml(info.spreadsheet.formTitle) : '');
+              (info.spreadsheet.formTitle ? '<br>Title: ' + escapeHtml(info.spreadsheet.formTitle) : '') +
+              (info.spreadsheet.version ? '<br>Version: <strong>' + escapeHtml(info.spreadsheet.version) + '</strong>' : '');
             document.getElementById('spreadsheetInfo').style.display = 'block';
-            
+
             // Add spreadsheet form as the first option
             let html = '<option value="">-- Select a form --</option>';
-            html += '<option value="' + escapeHtml(info.spreadsheet.formId) + '" selected>📄 ' + 
+            html += '<option value="' + escapeHtml(info.spreadsheet.formId) + '" selected>📄 ' +
               escapeHtml(info.spreadsheet.formTitle || info.spreadsheet.formId) + ' (from Settings sheet)</option>';
-            
+
             // Pre-select the spreadsheet form
             selectedFormId = info.spreadsheet.formId;
             selectedFormName = info.spreadsheet.formTitle || info.spreadsheet.formId;
             document.getElementById('formName').value = selectedFormName;
-            
+
             select.innerHTML = html;
             select.disabled = false;
-            
+
             // Update version preview
             updateVersionPreview(selectedFormId);
-            
+
             // Now also load server forms as additional options
             loadServerForms(true);
           } else {
@@ -299,115 +305,115 @@
             loadServerForms(false);
           }
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           console.error('Error getting form info:', error);
           loadServerForms(false);
         })
         .getCurrentFormInfo();
     }
-    
+
     /**
      * Load forms from SurveyCTO server
      */
     function loadServerForms(appendToExisting) {
       const select = document.getElementById('formSelect');
-      
+
       if (!appendToExisting) {
         select.innerHTML = '<option value="">Loading forms from server...</option>';
         select.disabled = true;
       }
-      
+
       google.script.run
-        .withSuccessHandler(function(loadedForms) {
+        .withSuccessHandler(function (loadedForms) {
           forms = loadedForms || [];
-          
+
           let html = '<option value="">-- Select a form --</option>';
-          
+
           // Add spreadsheet form first if detected
           if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
             const ssForm = spreadsheetFormInfo.spreadsheet;
-            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' + 
+            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' +
               escapeHtml(ssForm.formTitle || ssForm.formId) + ' (from Settings sheet)</option>';
           }
-          
+
           // Add server forms
           if (forms.length > 0) {
-            forms.forEach(function(form) {
+            forms.forEach(function (form) {
               // Skip if same as spreadsheet form
-              if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && 
-                  spreadsheetFormInfo.spreadsheet.found && form.id === spreadsheetFormInfo.spreadsheet.formId) {
+              if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet &&
+                spreadsheetFormInfo.spreadsheet.found && form.id === spreadsheetFormInfo.spreadsheet.formId) {
                 return;
               }
               html += '<option value="' + escapeHtml(form.id) + '">🌐 ' + escapeHtml(form.name || form.id) + ' (server)</option>';
             });
           }
-          
+
           if (!spreadsheetFormInfo?.spreadsheet?.found && forms.length === 0) {
             html = '<option value="">No forms found - enter ID manually below</option>';
           }
-          
+
           select.innerHTML = html;
           select.disabled = false;
-          
+
           // Re-select spreadsheet form if it was detected
           if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
             select.value = spreadsheetFormInfo.spreadsheet.formId;
           }
-          
+
           hideStatus();
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           let html = '<option value="">-- Select a form --</option>';
-          
+
           // Still show spreadsheet form if detected
           if (spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
             const ssForm = spreadsheetFormInfo.spreadsheet;
-            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' + 
+            html += '<option value="' + escapeHtml(ssForm.formId) + '">📄 ' +
               escapeHtml(ssForm.formTitle || ssForm.formId) + ' (from Settings sheet)</option>';
             select.innerHTML = html;
             select.value = ssForm.formId;
           } else {
             select.innerHTML = '<option value="">Error loading forms - enter ID manually below</option>';
           }
-          
+
           select.disabled = false;
           console.error('Error loading forms:', error);
         })
         .getForms();
     }
-    
+
     function loadForms() {
       loadFormInfo();
     }
-    
+
     function updateFormName() {
       const select = document.getElementById('formSelect');
       selectedFormId = select.value;
-      
+
       // Clear manual input if dropdown is used
       if (selectedFormId) {
         document.getElementById('formIdManual').value = '';
       }
-      
+
       // Find form name
-      const form = forms.find(function(f) { return f.id === selectedFormId; });
+      const form = forms.find(function (f) { return f.id === selectedFormId; });
       selectedFormName = form ? form.name : selectedFormId;
       document.getElementById('formName').value = selectedFormName;
-      
+
       // Update version preview
       if (selectedFormId) {
         updateVersionPreview(selectedFormId);
       } else {
         document.getElementById('versionPreview').style.display = 'none';
       }
-      
+
       showError('form', false);
     }
-    
+
     function updateManualFormId() {
       const manualInput = document.getElementById('formIdManual');
       const manualId = manualInput.value.trim();
-      
+
       if (manualId) {
         // Clear dropdown if manual input is used
         document.getElementById('formSelect').value = '';
@@ -417,22 +423,22 @@
         updateVersionPreview(manualId);
       }
     }
-    
+
     function updateVersionPreview(formId) {
       google.script.run
-        .withSuccessHandler(function(version) {
-          document.getElementById('nextVersion').textContent = version;
+        .withSuccessHandler(function (version) {
+          document.getElementById('lastVersion').textContent = version;
           document.getElementById('versionPreview').style.display = 'block';
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           console.error('Error getting version:', error);
         })
-        .getNextVersion(formId);
+        .getLastVersion(formId);
     }
-    
+
     function validateForm() {
       let isValid = true;
-      
+
       // Check form ID
       const formId = selectedFormId || document.getElementById('formIdManual').value.trim();
       if (!formId) {
@@ -441,7 +447,7 @@
       } else {
         showError('form', false);
       }
-      
+
       // Check message
       const message = document.getElementById('message').value.trim();
       if (!message) {
@@ -450,101 +456,102 @@
       } else {
         showError('message', false);
       }
-      
+
       return isValid;
     }
-    
+
     function submitDeploy() {
       if (!validateForm()) {
         return;
       }
-      
+
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="loader"></span>Deploying...';
-      
+
       const manualFormId = document.getElementById('formIdManual').value.trim();
       const message = document.getElementById('message').value.trim();
-      
+
       // If using spreadsheet form (not manual entry), get FRESH form_id at deployment time
       // This is critical for formula-based form_ids that change (e.g., timestamp-based)
       if (!manualFormId && spreadsheetFormInfo && spreadsheetFormInfo.spreadsheet && spreadsheetFormInfo.spreadsheet.found) {
-        // Fetch fresh form ID right now before deploying
+        // Fetch fresh form details right now before deploying
         google.script.run
-          .withSuccessHandler(function(freshData) {
+          .withSuccessHandler(function (freshData) {
             if (freshData.success) {
-              // Use the freshly captured form ID
+              // Use the freshly captured form ID and Version
               const formData = {
                 formId: freshData.formId,
                 formName: freshData.formTitle || freshData.formId,
+                version: freshData.version,
                 message: message
               };
-              
+
               // Update the display to show the actual form ID being deployed
-              showStatus('📌 Deploying with Form ID: <strong>' + escapeHtml(freshData.formId) + '</strong>', 'info');
-              
+              showStatus('📌 Deploying Form ID: <strong>' + escapeHtml(freshData.formId) + '</strong><br>Version: <strong>' + escapeHtml(freshData.version) + '</strong>', 'info');
+
               // Proceed with deployment
               executeDeployment(formData, submitBtn);
             } else {
               submitBtn.disabled = false;
               submitBtn.textContent = 'Deploy';
-              showStatus('❌ Error getting form ID: ' + freshData.error, 'error');
+              showStatus('❌ Error getting form details: ' + freshData.error, 'error');
             }
           })
-          .withFailureHandler(function(error) {
+          .withFailureHandler(function (error) {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Deploy';
             showStatus('❌ Error: ' + error.message, 'error');
           })
-          .getFreshFormIdForDeployment();
+          .getFreshFormDetailsForDeployment();
       } else {
         // Using manual form ID or server form - use as-is
         const formId = selectedFormId || manualFormId;
         const formName = selectedFormName || formId;
-        
+
         const formData = {
           formId: formId,
           formName: formName,
           message: message
         };
-        
+
         executeDeployment(formData, submitBtn);
       }
     }
-    
+
     /**
      * Execute the actual deployment after form ID is confirmed
      */
     function executeDeployment(formData, submitBtn) {
       google.script.run
-        .withSuccessHandler(function(result) {
+        .withSuccessHandler(function (result) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Deploy';
-          
+
           if (result.success) {
             showStatus('✅ ' + result.message + '<br>Version: <strong>' + result.version + '</strong>' +
               '<br>Form ID: <strong>' + escapeHtml(formData.formId) + '</strong>', 'success');
-            
+
             // Close dialog after 2 seconds
-            setTimeout(function() {
+            setTimeout(function () {
               google.script.host.close();
             }, 2000);
           } else {
             showStatus('❌ ' + result.message, 'error');
           }
         })
-        .withFailureHandler(function(error) {
+        .withFailureHandler(function (error) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Deploy';
           showStatus('❌ Error: ' + error.message, 'error');
         })
         .deployForm(formData);
     }
-    
+
     function closeDialog() {
       google.script.host.close();
     }
-    
+
     function escapeHtml(text) {
       if (!text) return '';
       const div = document.createElement('div');
@@ -553,4 +560,5 @@
     }
   </script>
 </body>
+
 </html>
