@@ -59,6 +59,42 @@ function showVersionHistory() {
 // FORM DETECTION
 // ============================================
 
+/**
+ * Get all form IDs from the settings sheet
+ * Used by Chrome extension to match deployed forms
+ */
+function getAllFormIds() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  let settingsSheet = null;
+  
+  for (let i = 0; i < sheets.length; i++) {
+    const name = sheets[i].getName().toLowerCase();
+    if (name === 'settings' || name === 'setting') {
+      settingsSheet = sheets[i];
+      break;
+    }
+  }
+  
+  if (!settingsSheet) return [];
+  
+  const displayValues = settingsSheet.getDataRange().getDisplayValues();
+  if (displayValues.length < 2) return [];
+  
+  const headers = displayValues[0].map(h => String(h).toLowerCase().trim());
+  const formIdIndex = headers.findIndex(h => h === 'form_id' || h === 'formid');
+  
+  if (formIdIndex < 0) return [];
+  
+  const formIds = [];
+  for (let i = 1; i < displayValues.length; i++) {
+    const formId = String(displayValues[i][formIdIndex]).trim();
+    if (formId) formIds.push(formId);
+  }
+  
+  return formIds;
+}
+
 function getFormDetailsFromSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheets = ss.getSheets();
@@ -143,6 +179,40 @@ function logDeployment(deployment) {
   sheet.appendRow([version, deployment.formId, deployment.formName, user, timestamp, deployment.message, deployment.status || 'Pending']);
   
   return { version, formId: deployment.formId, formName: deployment.formName, deployedBy: user, timestamp, message: deployment.message, status: deployment.status };
+}
+
+/**
+ * Log deployment with version number from SurveyCTO
+ * Called by Chrome extension after user enters deployment notes
+ */
+function logDeploymentWithVersion(deploymentData) {
+  try {
+    const sheet = createVersionHistorySheet();
+    const timestamp = new Date().toISOString();
+    const user = Session.getActiveUser().getEmail() || 'Unknown User';
+    
+    sheet.appendRow([
+      deploymentData.deployedVersion || 'Unknown',
+      deploymentData.formId,
+      deploymentData.formName || deploymentData.formId,
+      user,
+      timestamp,
+      deploymentData.message || '',
+      'Deployed'
+    ]);
+    
+    return {
+      success: true,
+      message: 'Deployment logged successfully',
+      version: deploymentData.deployedVersion,
+      formId: deploymentData.formId
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Failed to log deployment: ' + error.message
+    };
+  }
 }
 
 function updateDeploymentStatus(formId, status) {
@@ -373,6 +443,36 @@ function completeDeployment(formId) {
     return { success: true, message: 'Deployment marked as completed.' };
   } catch (error) {
     return { success: false, message: 'Failed to update status: ' + error.message };
+  }
+}
+
+/**
+ * Notify extension to start upload
+ * This is called from DeployPopup after file is ready
+ * The extension polls for this data and retrieves it from the background script
+ */
+function notifyExtensionToStartUpload(deployData) {
+  try {
+    // Store deployment data temporarily (extension will retrieve it)
+    // Note: In a full implementation, this could use PropertiesService
+    
+    // Extract server URL
+    const serverUrl = deployData.serverUrl || 'https://pspsicm.surveycto.com';
+    const cleanServerUrl = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    
+    Logger.log('Extension upload initiated for form: ' + deployData.formId);
+    Logger.log('File: ' + deployData.fileName);
+    Logger.log('Server: ' + cleanServerUrl);
+    
+    return {
+      success: true,
+      message: 'Extension upload initiated',
+      formId: deployData.formId,
+      fileName: deployData.fileName,
+      serverUrl: cleanServerUrl
+    };
+  } catch (error) {
+    return { success: false, error: 'Failed to notify extension: ' + error.message };
   }
 }
 

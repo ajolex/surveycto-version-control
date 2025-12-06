@@ -1,178 +1,233 @@
-# SurveyCTO Version Control - Google Apps Script Add-on
+# SurveyCTO Version Control
 
-A Google Sheets add-on for managing SurveyCTO form deployments with Git-like version control. Track every deployment, add meaningful commit messages, and maintain a complete history of your form changes.
+Automatic version tracking for SurveyCTO forms with zero manual data entry.
 
-## ✨ Features
+## What It Does
 
-- **One-Click Deploy** - Deploy forms to SurveyCTO with a single click plus a commit message
-- **Timestamp/Custom Versioning** - Uses the `version` column from your Settings sheet (supports formulas)
-- **Version History** - Persistent deployment history in a dedicated sheet
-- **SurveyCTO API Integration** - Real deployments via the SurveyCTO API
-- **Secure Credentials** - Credentials stored securely using Google's Properties Service
-- **CSV Export** - Export version history for data cleaning reference
-- **User-Friendly UI** - Custom sidebar and dialogs for easy navigation
+When you deploy a form to SurveyCTO, our system automatically:
+1. Detects the successful deployment
+2. Captures the version number from the server
+3. Logs it to your Google Sheet with a timestamp
+4. Records your deployment notes (optional)
 
-## 📋 Prerequisites
+**That's it. No manual copying. No manual logging. Completely automatic.**
 
-- A Google account with access to Google Sheets
-- A SurveyCTO server account with API access
-- SurveyCTO API credentials (username/email and password)
+## Quick Start (5 Minutes)
 
-## 🚀 Installation
+### 1. Load the Chrome Extension
+1. Open `chrome://extensions/`
+2. Enable **Developer mode** (top right)
+3. Click **Load unpacked**
+4. Select the `chrome-extension` folder
+5. Done! ✓
 
-### Method 1: Copy to Your Google Sheet
+### 2. Update Google Apps Script
+1. Open your Google Sheet
+2. Click **Extensions → Apps Script**
+3. Find `Code.gs`
+4. Add this function at the end:
 
-1. Open a new or existing Google Sheet
-2. Go to **Extensions** → **Apps Script**
-3. Delete any existing code in the editor
-4. Copy the contents of each file into the Apps Script project:
-   - `Code.gs` → Main script file
-   - `Sidebar.html` → HTML file (File → New → HTML file → name it "Sidebar")
-   - `Dialog.html` → HTML file (File → New → HTML file → name it "Dialog")
-   - `Settings.html` → HTML file (File → New → HTML file → name it "Settings")
-5. Copy the contents of `appsscript.json`:
-   - In Apps Script, go to **Project Settings** (gear icon)
-   - Check "Show 'appsscript.json' manifest file in editor"
-   - Click on `appsscript.json` in the editor and paste the content
-6. Save all files (Ctrl/Cmd + S)
-7. Refresh your Google Sheet
-8. You should see the **SurveyCTO Version Control** menu
+```javascript
+function logDeploymentWithVersion(deploymentData) {
+  try {
+    const sheet = createVersionHistorySheet();
+    const timestamp = new Date().toISOString();
+    const user = Session.getActiveUser().getEmail() || 'Unknown User';
+    
+    sheet.appendRow([
+      deploymentData.deployedVersion || 'Unknown',
+      deploymentData.formId,
+      deploymentData.formName || deploymentData.formId,
+      user,
+      timestamp,
+      deploymentData.message || '',
+      'Deployed'
+    ]);
+    
+    return { success: true, message: 'Deployment logged' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+```
 
-### Method 2: Deploy as Add-on (Advanced)
+5. Click **Save** ✓
 
-For organization-wide deployment, you can publish this as a Google Workspace **Editor Add-on**.
+### 3. Test It
+1. Keep your Google Sheet tab open
+2. Go to SurveyCTO and deploy a form (normal process)
+3. After success, extension dialog appears
+4. Add optional notes and click "Log Deployment"
+5. Check Version History sheet - new row appears ✓
 
-> **Note**: This is an Editor Add-on (uses the Extensions menu), not a sidebar-only Workspace Add-on.
+## How It Works
 
-See the detailed [Deployment Guide](deployment_guide.md) for step-by-step instructions on how to configure the Google Cloud Project and publish to the Marketplace.
+```
+You deploy form in SurveyCTO
+           ↓
+Success dialog appears
+           ↓
+Extension detects it automatically
+           ↓
+Extracts form ID + version from page
+           ↓
+Shows dialog with form details
+           ↓
+User adds optional notes
+           ↓
+Clicks "Log Deployment"
+           ↓
+Version History sheet updates instantly
+```
 
-## ⚙️ Configuration
+## What Gets Logged
 
-### Setting Up SurveyCTO Credentials
+Each deployment records:
+- **Version** - From SurveyCTO's deployment info
+- **Form ID** - Your form identifier
+- **Form Name** - Display name from sheet
+- **Deployed By** - Your email (automatic)
+- **Timestamp** - When logged (automatic)
+- **Message** - Your deployment notes (optional)
+- **Status** - "Deployed" (automatic)
 
-1. Click **SurveyCTO Version Control** → **Settings** in the menu
-2. Enter your SurveyCTO details:
-   - **Server URL**: Your SurveyCTO server name (e.g., `myorg` for myorg.surveycto.com)
-   - **Username**: Your SurveyCTO email address
-   - **Password**: Your SurveyCTO password or API key
-3. Click **Test Connection** to verify
-4. Click **Save** to store your credentials
+## Requirements
 
-> **🔒 Security Note**: Credentials are stored securely using Google's [Properties Service](https://developers.google.com/apps-script/reference/properties) and are only accessible to you.
+- ✓ Chrome browser
+- ✓ Google Sheet with Google Apps Script
+- ✓ SurveyCTO account
+- ✓ One Google Sheet tab open while deploying
 
-## 📖 Usage Guide
+## Sheet Setup
 
-### Deploying a Form
+Your Google Sheet needs two sheets:
 
-1. Click **SurveyCTO Version Control** → **Deploy Form** (or use the sidebar)
-2. Select a form from the dropdown or enter a Form ID manually
-3. Enter a deployment message describing your changes (like a Git commit message)
-4. Click **Deploy**
-5. The deployment will be logged with:
-   - Auto-incremented version number
-   - Timestamp
-   - Your email
-   - Deployment message
-   - Status
+**1. Settings Sheet** (where you track your forms)
+```
+| form_title | form_id | version | ... |
+|------------|---------|---------|-----|
+| Example Form | example | | |
+| PSP Survey | scto_survey | | |
+```
 
-### Viewing Version History
+**2. Version History Sheet** (where deployments are logged)
+```
+| Version | Form ID | Form Name | Deployed By | Timestamp | Message | Status |
+|---------|---------|-----------|-------------|-----------|---------|--------|
+| [auto] | [auto] | [auto] | [auto] | [auto] | [optional] | [auto] |
+```
 
-- Click **SurveyCTO Version Control** → **View Version History**
-- Or use the sidebar to see recent deployments
-- The history is stored in a sheet called "Version History"
+The extension automatically creates Version History if it doesn't exist.
 
-### Exporting to CSV
+## Features
 
-1. Click **SurveyCTO Version Control** → **Export to CSV**
-2. The CSV file will be created in your Google Drive
-3. Use this for data cleaning reference or external tracking
+✓ **Automatic Detection** - Detects form deployments without user intervention  
+✓ **Version Capture** - Gets version directly from SurveyCTO  
+✓ **Zero Manual Entry** - No copying numbers or typing timestamps  
+✓ **User Email** - Automatically records who deployed  
+✓ **Timestamps** - All deployments timestamped automatically  
+✓ **Optional Notes** - Add context to each deployment  
+✓ **Audit Trail** - Complete history of all deployments  
+✓ **Google Sheet Native** - Stores everything in your Sheet  
 
-### Using the Sidebar
+## Troubleshooting
 
-1. Click **SurveyCTO Version Control** → **Open Sidebar**
-2. The sidebar provides quick access to:
-   - Deploy button
-   - Settings
-   - Recent deployment history
-   - Export functionality
+### Extension dialog doesn't appear
+- Is your Google Sheet tab open in the same browser?
+- Is the extension enabled? Check `chrome://extensions/`
+- Try refreshing the SurveyCTO page
 
-## 📊 Version History Sheet
+### "No Google Sheets tab found" error
+- Open your Google Sheet in the same browser
+- Keep the tab open while deploying
+- Don't close the Sheet tab during deployment
 
-The add-on automatically creates and maintains a "Version History" sheet with the following columns:
+### Wrong form is being logged
+- Make sure form IDs in your Settings sheet match SurveyCTO exactly
+- The dialog shows the form ID before logging - verify it's correct
 
-| Column | Description |
-|--------|-------------|
-| Version | The version value captured from the Settings sheet |
-| Form ID | The SurveyCTO form identifier |
-| Form Name | Human-readable form name |
-| Deployed By | User who deployed |
-| Timestamp | ISO 8601 timestamp |
-| Message | Deployment commit message |
-| Status | Success/Failed/Logged |
+## File Structure
 
-## 📋 Spreadsheet Structure
+```
+surveycto-version-control/
+├── Code.gs                          # Google Apps Script
+├── appsscript.json                  # Apps Script config
+├── chrome-extension/
+│   ├── manifest.json                # Extension config
+│   ├── content.js                   # SurveyCTO page monitoring
+│   ├── background.js                # Extension background worker
+│   ├── sheets-content.js            # Google Sheets bridge
+│   └── icons/                       # Extension icons
+├── QUICK_START.md                   # This guide
+├── DEPLOYMENT_TRACKING_SETUP.md     # Detailed setup
+└── README.md                        # This file
+```
 
-This add-on is designed to work with SurveyCTO XLSForm spreadsheets. The standard structure includes:
+## Architecture
 
-| Sheet Name | Description |
-|------------|-------------|
-| **settings** | Form-level details including `form_id`, `form_title`, and `version` |
-| **survey** | All questions/fields with types (text, number, select) and logic |
-| **choices** | Options for multiple-choice questions, linked via `list_name` |
+The system consists of three parts:
 
-The add-on automatically detects the `form_id` and `version` from your **Settings** sheet. The `version` column is required and can contain a static number or a formula (e.g., a timestamp).
+1. **Content Script** (on SurveyCTO page)
+   - Monitors for deployment success dialog
+   - Extracts form ID and version from page
+   - Shows logging dialog with form details
+   
+2. **Background Service Worker** (in extension)
+   - Relays messages between SurveyCTO and Sheets
+   - Handles cross-domain communication
+   
+3. **Sheets Bridge** (on Google Sheet)
+   - Calls Apps Script functions
+   - Logs data to Version History sheet
 
-## 🔧 Troubleshooting
+## For Your Team
 
-### "Authorization required" error
-- Click through the authorization prompts
-- Make sure to allow all required permissions
+Share this with your team:
 
-### "Connection failed" in Settings
-- Verify your server URL (just the server name, not the full URL)
-- Check your username and password
-- Ensure your SurveyCTO account has API access
+> "Keep your Google Sheet open. Deploy forms to SurveyCTO as usual. After the success dialog, our extension automatically shows a logging dialog. Add optional notes and click Log. That's it - version control is automatic."
 
-### Forms not loading in dropdown
-- Verify your credentials are correct
-- Check if you have permission to access forms on your server
-- Use manual Form ID entry as a fallback
+## Advanced
 
-### Menu not appearing
-- Refresh the Google Sheet
-- Make sure the script is saved
-- Check for errors in the Apps Script editor (View → Logs)
+See `DEPLOYMENT_TRACKING_SETUP.md` for:
+- Complete setup guide with screenshots
+- Detailed troubleshooting
+- Team training guide
+- Technical architecture
+- Testing procedures
 
-## 🛡️ OAuth Scopes
+## Support
 
-This add-on requires the following permissions:
+If something doesn't work:
+1. Check F12 console for errors (F12 → Console tab)
+2. Verify Google Sheet is open in the same browser
+3. Check extension is enabled: `chrome://extensions/`
+4. Try disabling and re-enabling the extension
+5. Clear extension data: `chrome://extensions/` → SurveyCTO → Clear data
 
-| Scope | Purpose |
-|-------|---------|
-| `spreadsheets.currentonly` | Read/write to the current spreadsheet |
-| `script.container.ui` | Display sidebar and dialogs |
-| `userinfo.email` | Get current user's email for logging |
-| `script.external_request` | Call SurveyCTO API |
-| `drive.file` | Create CSV export files |
-| `drive.readonly` | Export spreadsheet as XLSX for deployment |
+## Technical Details
 
-## 📝 Best Practices
+- **Extension Type:** Chrome Extension (Manifest V3)
+- **Apps Script Version:** V8 runtime or later
+- **Communication:** Native Chrome messaging API
+- **Storage:** Google Sheet with Apps Script
+- **Security:** Uses google.script.run (secure API)
 
-1. **Write meaningful commit messages** - Describe what changed, not just "updated form"
-2. **Deploy after testing** - Test your form changes before deploying to production
-3. **Regular exports** - Export version history periodically for backup
-4. **Team coordination** - Share the Google Sheet with your team for collaborative tracking
+## Limitations
 
-## 🤝 Contributing
+- Requires Google Sheet tab to be open during deployment
+- Only logs deployments from this browser/profile
+- Manual form upload to SurveyCTO still required (no API available)
+- Version numbers come from SurveyCTO's server
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+## Next Steps
 
-## 📄 License
+1. **Quick Start** - Follow the 5-minute setup above
+2. **Test** - Try with one form deployment
+3. **Team Training** - Show your team how to use it
+4. **Deploy** - Use normally and watch Version History grow
 
-This project is open source and available under the [MIT License](LICENSE).
+---
 
-## 🙏 Acknowledgments
+**Ready to deploy?** Start with the 5-minute setup above!
 
-- Built for the SurveyCTO community
-- Inspired by Git version control workflows
-- Uses Google Apps Script and SurveyCTO API
+Need more help? See `DEPLOYMENT_TRACKING_SETUP.md` for the complete guide.

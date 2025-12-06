@@ -1,671 +1,289 @@
 /**
- * SurveyCTO Form Uploader - Content Script
+ * SurveyCTO Form Deployment Tracker - Content Script
  * 
- * Runs on SurveyCTO Design page (/main.html#Design)
- * Handles form deployment following SurveyCTO's actual workflow:
- * 1. Detects when Design page is ready
- * 2. Clicks "+" button to add form
- * 3. Clicks "Upload form definition"
- * 4. Selects file source (computer upload)
- * 5. Fills file input with XLSX form definition
- * 6. Clicks Upload button
- * 7. Completes deployment
+ * Monitors SurveyCTO Design page for successful form deployments
+ * Detects success dialog, extracts form version, and logs to Google Sheets
  */
 
 console.log('[Content Script] ✅ Loaded on SurveyCTO Design page');
 
-// Store deployment context
-let deploymentData = null;
-let selectedFormId = null;
+// Store available form IDs from Google Sheets
+let availableFormIds = [];
 
 /**
- * Notify background script that page is ready
+ * Initialize: Get list of form IDs from Google Sheets
  */
-function notifyPageReady() {
+function initializeFormIds() {
   chrome.runtime.sendMessage(
-    { type: 'CHECK_PAGE_READY' },
+    { type: 'GET_FORM_IDS' },
     (response) => {
-      if (chrome.runtime.lastError) {
-        console.log('[Content Script] Page ready signal - no deployment in progress');
-      } else {
-        console.log('[Content Script] Page ready signal sent');
+      if (response && response.formIds) {
+        availableFormIds = response.formIds;
+        console.log('[Content Script] Available form IDs:', availableFormIds);
       }
     }
   );
 }
 
 /**
- * Wait for SurveyCTO Design page to be ready
- * Design page shows a table of forms with action buttons
- */
-function waitForPageReady() {
-  const checkReady = setInterval(() => {
-    // SurveyCTO Design page has a forms table with action buttons
-    // Look for characteristic elements of the Design page
-    const formTable = document.querySelector('table') || 
-                      document.querySelector('[role="grid"]') ||
-                      document.querySelector('[class*="form"]');
-    
-    if (formTable && document.readyState === 'complete') {
-      clearInterval(checkReady);
-      console.log('[Content Script] SurveyCTO Design page ready');
-      
-      // Give UI a moment to fully render
-      setTimeout(() => {
-        notifyPageReady();
-      }, 1000);
-    }
-  }, 500);
-
-  // Timeout: notify after 5 seconds anyway
-  setTimeout(() => {
-    clearInterval(checkReady);
-    console.log('[Content Script] Page load timeout - notifying anyway');
-    notifyPageReady();
-  }, 5000);
-}
-
-/**
- * Listen for upload command from background script
+ * Listen for messages from background script
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'PERFORM_UPLOAD') {
-    handleFormUpdate(message, sendResponse);
-    return true; // Keep channel open for async response
+  if (message.type === 'DEPLOYMENT_DETECTED') {
+    console.log('[Content Script] Deployment detected:', message.data);
   }
 });
 
 /**
- * Main form deployment handler
- * Follows SurveyCTO's documented deployment workflow
+ * Monitor the page for the success dialog
+ * SurveyCTO shows: "Form uploaded successfully"
  */
-function handleFormUpdate(message, sendResponse) {
-  const { fileBlob, fileName, formId, attachmentBlobs } = message;
+function monitorForSuccessDialog() {
+  console.log('[Content Script] Monitoring for success dialog...');
   
-  console.log('[Content Script] 🚀 Starting form deployment for:', formId);
-  console.log('[Content Script] File:', fileName, '(' + (fileBlob.size / 1024).toFixed(2) + ' KB)');
-  if (attachmentBlobs && attachmentBlobs.length > 0) {
-    console.log('[Content Script] Attachments:', attachmentBlobs.length, 'files');
-    attachmentBlobs.forEach((att, i) => {
-      console.log(`  [${i}] ${att.name} (${(att.blob.size / 1024).toFixed(2)} KB)`);
-    });
-  }
-  
-  deploymentData = { fileBlob, fileName, formId, attachmentBlobs };
-  selectedFormId = formId;
-
-  try {
-    // Step 1: Click the "+" button to add a new form
-    console.log('[Content Script] Step 1: Looking for + button to add form...');
-    clickAddFormButton();
-    
-    // Step 2: Click "Upload form definition" option
-    setTimeout(() => {
-      console.log('[Content Script] Step 2: Looking for Upload form definition button...');
-      clickUploadFormDefinition();
-      
-      // Step 3: Wait for dialog and handle file upload
-      setTimeout(() => {
-        console.log('[Content Script] Step 3: Handling file upload dialog...');
-        handleFileUploadDialog(fileBlob, fileName, attachmentBlobs);
-      }, 2000);
-    }, 1500);
-    
-    sendResponse({ success: true, message: 'Form deployment workflow started' });
-    
-  } catch (error) {
-    console.error('[Content Script] ❌ Deployment error:', error.message);
-    notifyUploadComplete(false, 'Form deployment failed: ' + error.message);
-    sendResponse({ success: false, error: error.message });
-  }
-}
-
-
-/**
- * Click the "+" button to add a new form
- */
-function clickAddFormButton() {
-  console.log('[Content Script] === FIND ADD FORM BUTTON ===');
-  
-  // Look for "+" button - typically in a button or as text "+"
-  const buttons = document.querySelectorAll('button');
-  let addButton = null;
-
-  // Search for button with "+" text
-  for (let btn of buttons) {
-    const text = btn.textContent.trim();
-    console.log(`[Content Script] Button: "${text}"`);
-    if (text === '+' || text.includes('Add form') || text.includes('add your first')) {
-      if (!btn.disabled) {
-        addButton = btn;
-        console.log('[Content Script] ✅ Found + or Add button:', text);
-        break;
-      }
-    }
-  }
-
-  if (addButton) {
-    console.log('[Content Script] Clicking + button');
-    addButton.click();
-    console.log('[Content Script] ✅ Clicked + button');
-  } else {
-    console.warn('[Content Script] ⚠️  + button not found, trying alternative...');
-    // If no button found, might need to look for menu items
-    throw new Error('Could not find + button to add form');
-  }
-}
-
-/**
- * Click "Upload form definition" option
- */
-function clickUploadFormDefinition() {
-  console.log('[Content Script] === FIND UPLOAD FORM DEFINITION ===');
-  
-  // Look for "Upload form definition" button or menu item
-  const buttons = document.querySelectorAll('button, [role="menuitem"], li');
-  let uploadButton = null;
-
-  for (let element of buttons) {
-    const text = element.textContent.toLowerCase();
-    if (text.includes('upload form')) {
-      console.log('[Content Script] ✅ Found Upload form definition:', element.textContent.trim());
-      uploadButton = element;
-      break;
-    }
-  }
-
-  if (uploadButton) {
-    console.log('[Content Script] Clicking Upload form definition');
-    uploadButton.click();
-    console.log('[Content Script] ✅ Clicked Upload form definition');
-  } else {
-    console.error('[Content Script] ❌ Upload form definition not found');
-    throw new Error('Upload form definition option not found');
-  }
-}
-
-/**
- * Handle the file upload dialog
- * This appears after clicking "Upload form definition"
- */
-function handleFileUploadDialog(fileBlob, fileName, attachmentBlobs) {
-  console.log('[Content Script] === HANDLING FILE UPLOAD DIALOG ===');
-  
-  let dialogFound = false;
-  let checkCount = 0;
-  
-  const checkForDialog = setInterval(() => {
-    checkCount++;
-    console.log(`[Content Script] Dialog check #${checkCount}`);
-    
-    // Look for dialog/modal elements
-    const dialog = document.querySelector('[role="dialog"]') || 
-                   document.querySelector('.modal') ||
-                   document.querySelector('[class*="dialog"]');
+  const observer = new MutationObserver((mutations) => {
+    const dialog = document.querySelector('[role="dialog"]');
     
     if (dialog) {
-      clearInterval(checkForDialog);
-      dialogFound = true;
-      console.log('[Content Script] ✅ Upload dialog found');
+      const dialogText = dialog.textContent;
       
-      setTimeout(() => {
-        // Ensure "Select from your computer" is selected
-        selectComputerUpload();
+      if (dialogText.includes('Form uploaded successfully') || 
+          dialogText.includes('Form uploaded')) {
+        console.log('[Content Script] ✅ SUCCESS DIALOG DETECTED');
         
-        // Wait a bit then fill file input
         setTimeout(() => {
-          try {
-            fillFileInput(fileBlob, fileName);
-            
-            // Handle attachments if provided
-            if (attachmentBlobs && attachmentBlobs.length > 0) {
-              console.log('[Content Script] Found attachments, enabling attachment upload...');
-              setTimeout(() => {
-                enableAttachments(attachmentBlobs);
-              }, 1000);
-            } else {
-              // No attachments, proceed to upload
-              setTimeout(() => {
-                clickUploadButton();
-              }, 1500);
-            }
-          } catch (err) {
-            console.error('[Content Script] ❌ Error in file upload:', err.message);
-            notifyUploadComplete(false, err.message);
-          }
-        }, 1000);
-      }, 500);
-    }
-  }, 300);
-
-  // Timeout
-  setTimeout(() => {
-    clearInterval(checkForDialog);
-    if (!dialogFound) {
-      console.error('[Content Script] ❌ TIMEOUT: Dialog not found after 15 seconds');
-      notifyUploadComplete(false, 'Upload dialog did not appear');
-    }
-  }, 15000);
-}
-
-/**
- * Ensure "Select from your computer" is selected
- */
-function selectComputerUpload() {
-  console.log('[Content Script] === SELECT COMPUTER UPLOAD ===');
-  
-  // Look for radio buttons or buttons for file source
-  const buttons = document.querySelectorAll('button, [role="button"]');
-  let computerButton = null;
-
-  for (let btn of buttons) {
-    const text = btn.textContent.toLowerCase();
-    console.log(`[Content Script] Option button: "${btn.textContent.trim()}"`);
-    if (text.includes('computer') || text.includes('select from')) {
-      computerButton = btn;
-      console.log('[Content Script] ✅ Found "Select from your computer"');
-      break;
-    }
-  }
-
-  if (computerButton && !computerButton.disabled) {
-    computerButton.click();
-    console.log('[Content Script] ✅ Clicked "Select from your computer"');
-  } else {
-    console.log('[Content Script] "Select from your computer" already selected or not found');
-  }
-}
-
-/**
- * Select file source in the upload dialog
- */
-function selectFileSource() {
-  console.log('[Content Script] === SELECT FILE SOURCE ===');
-  
-  // Look for radio buttons
-  const radios = document.querySelectorAll('input[type="radio"]');
-  console.log(`[Content Script] Found ${radios.length} radio buttons`);
-  
-  let computerOption = null;
-  for (let radio of radios) {
-    const label = document.querySelector(`label[for="${radio.id}"]`);
-    const text = label ? label.textContent : '';
-    console.log(`[Content Script] Radio: "${text}"`);
-    
-    if (text.includes('computer') || text.includes('your computer')) {
-      computerOption = radio;
-      console.log('[Content Script] ✅ Found computer upload option');
-      break;
-    }
-  }
-
-  if (computerOption && !computerOption.checked) {
-    computerOption.click();
-    computerOption.checked = true;
-    
-    const changeEvent = new Event('change', { bubbles: true });
-    computerOption.dispatchEvent(changeEvent);
-    console.log('[Content Script] ✅ Selected computer upload option');
-  }
-}
-
-/**
- * Fill the file input with form definition
- */
-function fillFileInput(fileBlob, fileName) {
-  console.log('[Content Script] === FILL FILE INPUT ===');
-  console.log('[Content Script] File name:', fileName);
-  console.log('[Content Script] File blob size:', fileBlob.size, 'bytes');
-  
-  const fileInput = findFileInput();
-  if (!fileInput) {
-    console.error('[Content Script] ❌ File input not found');
-    console.log('[Content Script] All file inputs on page:');
-    const allInputs = document.querySelectorAll('input[type="file"]');
-    console.log('[Content Script] Total file inputs:', allInputs.length);
-    allInputs.forEach((input, i) => {
-      console.log(`  Input ${i}:`, input.id, input.name, input.className);
-    });
-    throw new Error('File input not found in modal');
-  }
-
-  try {
-    console.log('[Content Script] File input found:', fileInput.id, fileInput.name);
-    
-    // Create File object
-    const file = new File([fileBlob], fileName, { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    });
-    console.log('[Content Script] File object created:', file.name, file.size);
-
-    // Fill file input using DataTransfer
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-    fileInput.files = dataTransfer.files;
-
-    console.log('[Content Script] Files assigned to input:', fileInput.files.length);
-    if (fileInput.files.length > 0) {
-      console.log('[Content Script] ✅ First file:', fileInput.files[0].name);
-    }
-
-    // Dispatch change event
-    const changeEvent = new Event('change', { bubbles: true });
-    fileInput.dispatchEvent(changeEvent);
-
-    console.log('[Content Script] ✅ File input filled and change event fired');
-  } catch (error) {
-    console.error('[Content Script] ❌ Error filling file input:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Find file input element on page
- */
-function findFileInput() {
-  // Try different selectors used by SurveyCTO
-  const selectors = [
-    'input[type="file"]',
-    'input[id*="file"]',
-    'input[id*="upload"]',
-    'input[name*="file"]',
-    'input[name*="upload"]'
-  ];
-
-  for (let selector of selectors) {
-    const input = document.querySelector(selector);
-    if (input) {
-      console.log('[Content Script] Found file input:', selector);
-      return input;
-    }
-  }
-
-  // Last resort: find any file input
-  const allInputs = document.querySelectorAll('input[type="file"]');
-  if (allInputs.length > 0) {
-    console.log('[Content Script] Found file input (generic search)');
-    return allInputs[0];
-  }
-
-  return null;
-}
-
-/**
- * Enable attachment upload and add files
- */
-function enableAttachments(attachmentBlobs) {
-  console.log('[Content Script] === ENABLE ATTACHMENTS ===');
-  console.log('[Content Script] Attachments to add:', attachmentBlobs.length);
-  
-  // Look for "Attach files?" toggle switch
-  const toggles = document.querySelectorAll('input[type="checkbox"], [role="switch"]');
-  let attachToggle = null;
-  
-  console.log(`[Content Script] Found ${toggles.length} toggles/checkboxes`);
-  
-  for (let toggle of toggles) {
-    const label = toggle.parentElement?.textContent || '';
-    console.log(`[Content Script] Toggle: "${label}"`);
-    
-    if (label.includes('Attach') || label.includes('attach')) {
-      attachToggle = toggle;
-      console.log('[Content Script] ✅ Found Attach files toggle');
-      break;
-    }
-  }
-
-  if (attachToggle && !attachToggle.checked) {
-    console.log('[Content Script] Enabling attachment toggle');
-    attachToggle.click();
-    attachToggle.checked = true;
-    
-    const changeEvent = new Event('change', { bubbles: true });
-    attachToggle.dispatchEvent(changeEvent);
-    
-    console.log('[Content Script] ✅ Attachment toggle enabled');
-    
-    // Wait for attachment file inputs to appear, then fill them
-    setTimeout(() => {
-      fillAttachments(attachmentBlobs);
-    }, 1500);
-  } else if (attachToggle && attachToggle.checked) {
-    console.log('[Content Script] Attachment toggle already enabled');
-    setTimeout(() => {
-      fillAttachments(attachmentBlobs);
-    }, 500);
-  } else {
-    console.warn('[Content Script] ⚠️  Attach files toggle not found, proceeding without attachments');
-    clickUploadButton();
-  }
-}
-
-/**
- * Fill attachment file inputs
- */
-function fillAttachments(attachmentBlobs) {
-  console.log('[Content Script] === FILL ATTACHMENTS ===');
-  console.log('[Content Script] Filling', attachmentBlobs.length, 'attachments');
-  
-  // Find all file inputs (there may be multiple after enabling attachments)
-  const fileInputs = document.querySelectorAll('input[type="file"]');
-  console.log(`[Content Script] Found ${fileInputs.length} file inputs`);
-  
-  if (fileInputs.length < 2) {
-    // Less than expected (1 for form + at least 1 for attachments)
-    console.warn('[Content Script] ⚠️  Not enough file inputs found for attachments');
-    clickUploadButton();
-    return;
-  }
-
-  let attachmentIndex = 0;
-  
-  // Start from index 1 (skip the form definition file input at index 0)
-  for (let i = 1; i < fileInputs.length && attachmentIndex < attachmentBlobs.length; i++) {
-    const fileInput = fileInputs[i];
-    const attachment = attachmentBlobs[attachmentIndex];
-    
-    try {
-      console.log(`[Content Script] Adding attachment ${attachmentIndex + 1}: ${attachment.name}`);
-      
-      // Create File object from attachment
-      const file = new File([attachment.blob], attachment.name);
-      
-      // Fill file input
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      
-      // Dispatch change event
-      const changeEvent = new Event('change', { bubbles: true });
-      fileInput.dispatchEvent(changeEvent);
-      
-      console.log(`[Content Script] ✅ Attachment ${attachmentIndex + 1} added: ${attachment.name}`);
-      attachmentIndex++;
-    } catch (error) {
-      console.error(`[Content Script] ❌ Error adding attachment ${attachmentIndex}:`, error.message);
-    }
-  }
-
-  if (attachmentIndex === attachmentBlobs.length) {
-    console.log('[Content Script] ✅ All attachments added');
-  } else {
-    console.warn(`[Content Script] ⚠️  Only ${attachmentIndex}/${attachmentBlobs.length} attachments added`);
-  }
-
-  // Proceed to upload
-  setTimeout(() => {
-    clickUploadButton();
-  }, 1000);
-}
-
-/**
- * Click the Upload button to submit the form
- */
-function clickUploadButton() {
-  console.log('[Content Script] === CLICK UPLOAD BUTTON ===');
-  
-  const buttons = document.querySelectorAll('button');
-  console.log(`[Content Script] Found ${buttons.length} buttons`);
-  
-  let uploadButton = null;
-  
-  // Find the Upload button
-  for (let btn of buttons) {
-    const text = btn.textContent.toLowerCase().trim();
-    if (text === 'upload' && !btn.disabled) {
-      uploadButton = btn;
-      console.log('[Content Script] ✅ Found Upload button');
-      break;
-    }
-  }
-
-  if (uploadButton) {
-    console.log('[Content Script] Clicking Upload button');
-    uploadButton.click();
-    console.log('[Content Script] ✅ Upload button clicked');
-    
-    // Monitor for completion
-    setTimeout(() => {
-      console.log('[Content Script] === DEPLOYMENT COMPLETE ===');
-      notifyUploadComplete(true, 'Form definition uploaded successfully');
-    }, 3000);
-  } else {
-    console.error('[Content Script] ❌ Upload button not found');
-    console.log('[Content Script] All buttons:');
-    buttons.forEach((btn, i) => {
-      console.log(`  ${i}: "${btn.textContent.trim()}" disabled=${btn.disabled}`);
-    });
-    notifyUploadComplete(false, 'Upload button not found');
-  }
-}
-
-/**
- * Advance through modal dialog steps
- * Clicks Continue/Next buttons and handles deployment options
- */
-function advanceModal() {
-  console.log('[Content Script] === ADVANCE MODAL ===');
-  
-  // Look for action buttons in modal
-  const buttons = document.querySelectorAll('[role="dialog"] button, .modal button, button');
-  console.log(`[Content Script] Found ${buttons.length} buttons on page`);
-  
-  let continueButton = null;
-
-  // Find Continue, Next, or Upload button
-  for (let btn of buttons) {
-    const text = btn.textContent.toLowerCase().trim();
-    if (text === 'continue' || text === 'next' || text === 'upload' || text === 'proceed') {
-      if (!btn.disabled) {
-        continueButton = btn;
-        console.log(`[Content Script] ✅ Found continue button: "${text}"`);
-        break;
-      } else {
-        console.log(`[Content Script] Found "${text}" but it's disabled`);
+          handleSuccessDialog();
+        }, 500);
+        
+        observer.disconnect();
       }
     }
-  }
-
-  if (continueButton) {
-    console.log('[Content Script] Clicking continue button');
-    continueButton.click();
-    console.log('[Content Script] ✅ Clicked continue button');
-    
-    // Listen for the final step (deployment options)
-    setTimeout(() => {
-      console.log('[Content Script] Moving to deployment options...');
-      handleDeploymentOptions();
-    }, 2000);
-  } else {
-    console.warn('[Content Script] ⚠️  Continue button not found - listing all buttons:');
-    buttons.forEach((btn, i) => {
-      console.log(`  Button ${i}: "${btn.textContent.trim()}" disabled=${btn.disabled}`);
-    });
-    notifyUploadComplete(true, 'File uploaded but manual completion needed');
-  }
-}
-
-/**
- * Handle deployment options step
- * Select "Deploy updated version immediately" option
- */
-function handleDeploymentOptions() {
-  console.log('[Content Script] === DEPLOYMENT OPTIONS ===');
+  });
   
-  // Look for deployment option radio buttons
-  const options = document.querySelectorAll('input[type="radio"]');
-  console.log(`[Content Script] Found ${options.length} radio buttons for deployment options`);
-  
-  let deployNowOption = null;
-
-  for (let option of options) {
-    const label = document.querySelector(`label[for="${option.id}"]`);
-    const labelText = label ? label.textContent : 'no label';
-    console.log(`[Content Script] Radio option: "${labelText.substring(0, 50)}..."`);
-    
-    if (label && (
-      label.textContent.includes('Deploy') || 
-      label.textContent.includes('immediately') ||
-      label.textContent.includes('deploy updated')
-    )) {
-      deployNowOption = option;
-      console.log(`[Content Script] ✅ Found deploy now option: "${labelText.substring(0, 50)}"`);
-      break;
-    }
-  }
-
-  if (deployNowOption && !deployNowOption.checked) {
-    console.log('[Content Script] Selecting deploy now option');
-    deployNowOption.click();
-    deployNowOption.checked = true;
-    
-    const changeEvent = new Event('change', { bubbles: true });
-    deployNowOption.dispatchEvent(changeEvent);
-    console.log('[Content Script] ✅ Deploy option selected');
-  } else if (deployNowOption) {
-    console.log('[Content Script] Deploy option already checked');
-  } else {
-    console.warn('[Content Script] ⚠️  No deploy now option found');
-  }
-
-  // Click the final Upload/Deploy button
-  setTimeout(() => {
-    console.log('[Content Script] Looking for final upload button...');
-    clickFinalUploadButton();
-  }, 1000);
-}
-
-/**
- * Notify background script that upload is complete
- */
-function notifyUploadComplete(success, message) {
-  chrome.runtime.sendMessage({
-    type: 'UPLOAD_COMPLETE',
-    success: success,
-    message: message
-  }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.log('[Content Script] Could not notify background:', chrome.runtime.lastError);
-    }
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: false
   });
 }
 
 /**
- * Initialize when script loads
+ * Handle the success dialog
  */
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[Content Script] DOM loaded, waiting for page ready');
-  waitForPageReady();
-});
+function handleSuccessDialog() {
+  console.log('[Content Script] === HANDLING SUCCESS DIALOG ===');
+  
+  const formsList = extractFormsFromPage();
+  console.log('[Content Script] Forms on page:', formsList);
+  
+  if (formsList.length === 0) {
+    console.warn('[Content Script] No forms found on page');
+    return;
+  }
+  
+  const deployedForm = findDeployedForm(formsList);
+  
+  if (!deployedForm) {
+    console.warn('[Content Script] Could not match deployed form');
+    return;
+  }
+  
+  console.log('[Content Script] ✅ Deployed form identified:', deployedForm);
+  
+  setTimeout(() => {
+    showDeploymentNotesDialog(deployedForm);
+  }, 1000);
+}
 
-// Also check on load event
-window.addEventListener('load', () => {
-  console.log('[Content Script] Window loaded');
-  notifyPageReady();
-});
+/**
+ * Extract all forms from the SurveyCTO Design page
+ */
+function extractFormsFromPage() {
+  const forms = [];
+  
+  const textElements = document.querySelectorAll('*');
+  
+  for (let el of textElements) {
+    const text = el.textContent;
+    
+    const match = text.match(/Form\s+ID:\s*([^,]+),\s*Deployed\s+version:\s*(\d+)/);
+    
+    if (match) {
+      const formId = match[1].trim();
+      const version = match[2].trim();
+      
+      if (el.children.length === 0 || el.textContent.length < 100) {
+        forms.push({ formId, version });
+        console.log(`[Content Script] Found form: ${formId} (v${version})`);
+      }
+    }
+  }
+  
+  const uniqueForms = [];
+  const seen = new Set();
+  
+  for (let form of forms) {
+    const key = form.formId + '-' + form.version;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueForms.push(form);
+    }
+  }
+  
+  return uniqueForms;
+}
 
-// If already loaded when script runs
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  console.log('[Content Script] Document already loaded');
-  setTimeout(() => notifyPageReady(), 1000);
+/**
+ * Find which form on the page matches our available form IDs
+ */
+function findDeployedForm(formsList) {
+  console.log('[Content Script] Matching forms. Available IDs:', availableFormIds);
+  
+  if (availableFormIds.length === 0) {
+    if (formsList.length > 0) {
+      return formsList[formsList.length - 1];
+    }
+    return null;
+  }
+  
+  for (let form of formsList) {
+    if (availableFormIds.includes(form.formId)) {
+      console.log(`[Content Script] ✅ Matched: ${form.formId}`);
+      return form;
+    }
+  }
+  
+  if (formsList.length > 0) {
+    console.log('[Content Script] No exact match, using most recent form');
+    return formsList[formsList.length - 1];
+  }
+  
+  return null;
+}
+
+/**
+ * Show a dialog for the user to enter deployment notes
+ */
+function showDeploymentNotesDialog(deployedForm) {
+  console.log('[Content Script] Showing deployment notes dialog for:', deployedForm.formId);
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'surveycto-deployment-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  `;
+  
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 90%;
+    font-family: Arial, sans-serif;
+  `;
+  
+  dialog.innerHTML = `
+    <h2 style="margin-top: 0; color: #333;">Deployment Logged</h2>
+    <div style="background: #f0f0f0; padding: 15px; border-radius: 4px; margin: 20px 0; font-size: 14px;">
+      <p style="margin: 5px 0;"><strong>Form ID:</strong> ${deployedForm.formId}</p>
+      <p style="margin: 5px 0;"><strong>Version:</strong> ${deployedForm.version}</p>
+    </div>
+    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+      Add deployment notes (optional):
+    </p>
+    <textarea id="deployment-message" placeholder="e.g., Minor bug fixes, added new questions, etc."
+      style="
+        width: 100%;
+        height: 100px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-sizing: border-box;
+      "></textarea>
+    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+      <button id="cancel-button" style="
+        padding: 10px 20px;
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      ">Cancel</button>
+      <button id="submit-button" style="
+        padding: 10px 20px;
+        background: #4285f4;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      ">Log Deployment</button>
+    </div>
+  `;
+  
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  
+  document.getElementById('cancel-button').addEventListener('click', () => {
+    overlay.remove();
+    setTimeout(() => monitorForSuccessDialog(), 1000);
+  });
+  
+  document.getElementById('submit-button').addEventListener('click', () => {
+    const message = document.getElementById('deployment-message').value;
+    
+    // Send to background script, which will relay to Apps Script
+    chrome.runtime.sendMessage({
+      type: 'LOG_DEPLOYMENT',
+      formId: deployedForm.formId,
+      deployedVersion: deployedForm.version,
+      message: message,
+      timestamp: new Date().toISOString(),
+      user: 'extension'
+    }, (response) => {
+      if (response && response.success) {
+        console.log('[Content Script] ✅ Deployment logged');
+        
+        dialog.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <h2 style="color: #4285f4; margin-top: 0;">✓ Logged Successfully</h2>
+            <p style="color: #666;">Your deployment has been recorded in the Version History.</p>
+          </div>
+        `;
+        
+        setTimeout(() => {
+          overlay.remove();
+          setTimeout(() => monitorForSuccessDialog(), 1000);
+        }, 2000);
+      } else {
+        alert('Error logging deployment: ' + (response?.error || 'Unknown error'));
+      }
+    });
+  });
+}
+
+/**
+ * Initialize when page loads
+ */
+if (document.readyState === 'complete') {
+  initializeFormIds();
+  monitorForSuccessDialog();
+} else {
+  window.addEventListener('load', () => {
+    initializeFormIds();
+    monitorForSuccessDialog();
+  });
 }

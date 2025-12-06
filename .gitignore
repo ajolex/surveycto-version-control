@@ -1,0 +1,23 @@
+# Archive folder - contains old implementation attempts
+archive/
+
+# Old docs folder - superseded by QUICK_START.md and DEPLOYMENT_TRACKING_SETUP.md
+docs/
+
+# Node modules and dependencies
+node_modules/
+.npm
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

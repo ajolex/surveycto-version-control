@@ -20,6 +20,11 @@
       "matches": ["https://*.surveycto.com/main.html*"],
       "js": ["content.js"],
       "run_at": "document_end"
+    },
+    {
+      "matches": ["https://docs.google.com/spreadsheets/*"],
+      "js": ["sheets-content.js"],
+      "run_at": "document_end"
     }
   ],
   "action": {
